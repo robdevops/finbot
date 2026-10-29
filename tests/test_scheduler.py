@@ -574,7 +574,7 @@ class JobsInChat(ChatBase):
 		which stays out of the list."""
 		self.assertEqual(newest(self.say('.jobs add shorts daily at 10pm')), '3. * shorts · daily at 10:00pm')
 		self.assertEqual(self.say('.jobs'), ['<b>Jobs here</b>', '', '<b>Rating</b>',
-			'1. * rating · Tue–Sat at 8:30am', '', '<b>Movers</b>',
+			'1. * rating · Tue–Sat at 9:00am', '', '<b>Movers</b>',
 			'2. * movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)', '', '<b>Shorts</b>',
 			'3. * shorts · daily at 10:00pm', '', '<b>Trades</b>', '4. * trades · every 20 mins, weekdays UTC', '',
 			'* not run yet', '',
@@ -584,7 +584,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(self.say('.jobs del 4'), ['Deleted 4. trades · every 20 mins, weekdays UTC'])
 		shorts = entry('shorts daily at 10pm', zone='Australia/Melbourne')
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [shorts]})
-		self.assertEqual(self.say('.jobs delete 1'), ['Deleted 1. rating · Tue–Sat at 8:30am'])
+		self.assertEqual(self.say('.jobs delete 1'), ['Deleted 1. rating · Tue–Sat at 9:00am'])
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [shorts], 'deleted': ['rating']})
 		self.assertEqual([job.name for job in self.s.chat_jobs(CHAT)], ['movers close US', 'shorts'])
 		self.assertEqual(self.say('.job remove 2'), ['Deleted 2. shorts · daily at 10:00pm'])
@@ -625,7 +625,7 @@ class JobsInChat(ChatBase):
 		"""A job is a report, what it takes, and a schedule in English, by the timezone setting's clock unless it
 		names a zone; performance and movers cover the days between runs where they name no period."""
 		for text, line, args in (('movers weekly', 'movers · weekly, Saturdays at 9:00am', ['7']),
-				('performance first day of each month at 9am', 'performance · monthly, the 1st at 9:00am', ['30']),
+				('performance first day of each month at 9am', 'performance · monthly, the 1st at 9:00am', ['1m']),
 				('movers daily at 5pm', 'movers · daily at 5:00pm', ['interday']),
 				('movers 30 weekly', 'movers 30 · weekly, Saturdays at 9:00am', ['30']),
 				('movers midsession weekdays at 12:45pm New York',
@@ -701,13 +701,13 @@ class JobsInChat(ChatBase):
 		"""A job typed as a default one is (in a zone that keeps its clock: Melbourne for Sydney) switches that one on,
 		and brings it back where it was removed; nothing more is stored."""
 		self.say('.jobs toggle 1')
-		added = self.say('.jobs add rating tue-sat at 8:30am')
-		self.assertEqual(newest(added), '1. * rating · Tue–Sat at 8:30am')
+		added = self.say('.jobs add rating tue-sat at 9am')
+		self.assertEqual(newest(added), '1. * rating · Tue–Sat at 9:00am')
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('trades every 20 mins weekdays')]})
 		self.say('.jobs remove 1')
 		self.assertEqual([job.name for job in self.s.chat_jobs(CHAT)], ['movers close US', 'trades'])
-		added = self.say('.jobs add rating tue-sat at 8:30am')
-		self.assertEqual(newest(added), '1. * rating · Tue–Sat at 8:30am')
+		added = self.say('.jobs add rating tue-sat at 9am')
+		self.assertEqual(newest(added), '1. * rating · Tue–Sat at 9:00am')
 		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT], {'jobs': [entry('trades every 20 mins weekdays')]})
 
 	def test_run_a_job_now(self):
@@ -755,7 +755,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(self.s.due(self.clock.now), [])
 		self.assertEqual(self.say('.jobs toggle 3'), ['3. * trades · every 20 mins, weekdays UTC'])
 		self.clock.now = at(13, 21, 40)
-		self.assertEqual([job.name for job, _ in self.s.due(self.clock.now)], ['rating', 'trades'])
+		self.assertEqual([job.name for job, _ in self.s.due(self.clock.now)], ['trades'])
 
 	def test_a_job_is_marked_till_it_first_runs(self):
 		"""* marks a job that has never run, on its schedule or by hand; the list says what it means while it shows
@@ -763,11 +763,11 @@ class JobsInChat(ChatBase):
 		self.say('.jobs run 3')
 		lines = self.say('.jobs')
 		self.assertIn('3. trades · every 20 mins, weekdays UTC', lines)
-		self.assertIn('1. * rating · Tue–Sat at 8:30am', lines)
-		self.clock.now = at(13, 21, 31) # Wednesday 8:31am in Sydney: rating has run, New York's close not yet
+		self.assertIn('1. * rating · Tue–Sat at 9:00am', lines)
+		self.clock.now = at(13, 22, 1) # Wednesday 9:01am in Sydney: rating has run, New York's close not yet
 		self.s.tick()
 		lines = self.say('.jobs')
-		self.assertIn('1. rating · Tue–Sat at 8:30am', lines)
+		self.assertIn('1. rating · Tue–Sat at 9:00am', lines)
 		self.assertIn('2. * movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)', lines)
 		self.assertIn('* not run yet', lines)
 		self.say('.jobs run 2')
@@ -790,7 +790,7 @@ class JobsInChat(ChatBase):
 		self.assertEqual(self.say('.jobs next'), lines)
 		self.assertEqual(lines[:4], ['<b>Upcoming runs:</b>',
 			'Wed 14 Oct 8:20am (21:20 UTC) – 10:40am, every 20 mins · 3. trades',
-			'Wed 14 Oct 8:30am · 1. rating',
+			'Wed 14 Oct 9:00am · 1. rating',
 			'Wed 14 Oct 11:00am (00:00 UTC) – Thu 15 Oct 10:40am, every 20 mins · 3. trades'])
 		self.assertEqual(self.say('.jobs system'), ['<b>System jobs:</b>'])
 

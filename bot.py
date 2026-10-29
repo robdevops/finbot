@@ -277,7 +277,8 @@ def http_server():
 	return waitress.create_server(main, host=config.env.ip, port=config.env.port)
 
 if __name__ == '__main__':
-	sys.stderr = WholeLines(sys.stderr) # threads log at once: each line goes out whole
+	# threads log at once: each line goes out whole
+	sys.stdout, sys.stderr = WholeLines(sys.stdout), WholeLines(sys.stderr)
 	log.info(f'Starting finbot {config.git_version()}')
 	try:
 		config.check_startup_environment()

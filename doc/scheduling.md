@@ -107,7 +107,7 @@ The commands that change something (`watchlist`, `plan`, `jobs`) are no jobs, an
 earnings, dividends, session and premarket are run by their reports above.
 
 The period of `performance` and `movers` follows how often the job runs: weekly covers 7 days, monthly 30, quarterly
-90, bi-annual 180 and annual 365, and a daily `movers` is the day's moves. A number given (`movers 30 weekly`) is used
+90, bi-annual 180 and annual 365 (`performance` shows them as 1w, 1m, 3m), and a daily `movers` is the day's moves. A number given (`movers 30 weekly`) is used
 instead.
 
 A **reminder** posts its text as it is:
@@ -134,35 +134,29 @@ move as either side's daylight saving changes.
 | 6 | movers close HK | weekdays at 4:30pm Hong Kong (7:30pm local) |
 | 7 | movers close UK | weekdays at 5:00pm London (3:00am local, Tue–Sat) |
 | 8 | movers close US | weekdays at 4:30pm New York (7:30am local, Tue–Sat) |
-| 9 | rating | Tue–Sat at 8:30am Sydney |
-| 10 | milestone | Tue–Sat at 8:30am Sydney |
-| 11 | podcasts Money Cafe | hourly at :01, weekdays 10am–9pm Sydney |
-| 12 | podcasts Stocktake | hourly at :01, weekdays 10am–9pm Sydney |
-| 13 | earnings | weekly, Sundays at 8:30am Sydney |
-| 14 | shorts | weekly, Sundays at 8:30am Sydney |
-| 15 | performance | weekly, Sundays at 8:30am Sydney |
-| 16 | movers | weekly, Sundays at 8:30am Sydney |
-| 17 | performance | monthly, the 2nd at 8:30am Sydney |
-| 18 | movers | monthly, the 2nd at 8:30am Sydney |
-| 19 | performance | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
-| 20 | movers | quarterly, 2 Jan/Apr/Jul/Oct at 8:30am Sydney |
-| 21 | performance | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
-| 22 | movers | bi-annual, 2 Jan and 2 Jul at 8:30am Sydney |
-| 23 | performance | annual, 2 Jan at 8:30am Sydney |
-| 24 | movers | annual, 2 Jan at 8:30am Sydney |
-| 25 | 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
-| 26 | 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
-| 27 | 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
-| 28 | ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
-| 29 | finbot's birthday | annual, 18 Aug at 8:30am Sydney |
-| 30 | 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
-| 31 | 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
+| 9 | rating | Tue–Sat at 9:00am Sydney |
+| 10 | milestone | Tue–Sat at 9:00am Sydney |
+| 11 | earnings | monthly, the 1st at 9:00am Sydney |
+| 12 | shorts | weekly, Saturdays at 9:00am Sydney |
+| 13 | performance 1w | weekly, Saturdays at 9:00am Sydney |
+| 14 | movers | weekly, Saturdays at 9:00am Sydney |
+| 15 | performance 1m | monthly, the 1st at 9:00am Sydney |
+| 16 | movers | monthly, the 1st at 9:00am Sydney |
+| 17 | performance 3m | quarterly, 1 Jan/Apr/Jul/Oct at 9:00am Sydney |
+| 18 | movers | quarterly, 1 Jan/Apr/Jul/Oct at 9:00am Sydney |
+| 19 | 🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 | annual, 31 Mar at 8:30am Sydney |
+| 20 | 💸 Realise capital gains/losses by EOFY June 30 (AU) | annual, 23 Jun at 8:30am Sydney |
+| 21 | 🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 | annual, 30 Jun at 8:30am Sydney |
+| 22 | ✍️ Submit 'Notice of Intent to Claim' … (AU) | annual, 7 Jul at 8:30am Sydney |
+| 23 | finbot's birthday | annual, 18 Aug at 8:30am Sydney |
+| 24 | 😓 Self-service individual tax returns are due Oct 31 (AU) | annual, 25 Oct at 8:30am Sydney |
+| 25 | 😰 Self-service individual tax returns are due today (AU) | annual, 31 Oct at 8:30am Sydney |
 
 * **Market reports run in their market's zone**, so they keep to its session through its daylight saving:
   * pre-market US at 7:15am New York;
   * mid-session about halfway through: 1:00pm Sydney for the ASX, 12:45pm New York for the NYSE;
   * the close 30 minutes after it: 4:30pm Sydney for the ASX, 4:30pm Hong Kong, 5:00pm London and 4:30pm New York.
-* **The reminders (from 25 on)** marked (AU) are default jobs only where the `country_code` setting is `AU`. A chat
+* **The reminders (from 19 on)** marked (AU) are default jobs only where the `country_code` setting is `AU`. A chat
   adds its own with `/jobs add reminder` ([A job in English](#a-job-in-english)).
 * **trades and performance** are default jobs only where Sharesight is set up (see
   [Configuration](configuration.md#sharesight)).

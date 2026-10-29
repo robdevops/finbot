@@ -11,15 +11,13 @@ from lib import markets
 from lib import when
 
 SYDNEY, NEW_YORK, HONG_KONG, LONDON = 'Australia/Sydney', 'America/New_York', 'Asia/Hong_Kong', 'Europe/London'
-MORNING = '08:30' # by Sydney's clock: the weekly and longer reports, and the reminders
+MORNING = '09:00' # by Sydney's clock: the weekly and longer reports
+REMINDERS = '08:30' # by Sydney's clock: the reminders
 TUE_SAT = ['tue', 'wed', 'thu', 'fri', 'sat'] # the mornings after a US session
 SHARESIGHT = ('trades', 'performance', 'holdings', 'treemap', 'who') # the actions that report on Sharesight
 PERIODIC = ('performance', 'movers') # the reports whose period follows how often they run
 PERIOD_DAYS = {'daily': 1, 'weekdays': 1, 'weekly': 7, 'monthly': 30, 'quarterly': 90, 'bi-annual': 180, 'annual': 365}
-MONEY_CAFE = ('https://www.omnycontent.com/d/playlist/b034de0e-930d-434b-9822-a7140060b2c0/'
-	'95d715e5-10a7-4e54-b114-a9b4001be172/c47481a8-e548-4c2b-8592-ad48003dc9c2/podcast.rss')
-STOCKTAKE = ('https://www.omnycontent.com/d/playlist/b034de0e-930d-434b-9822-a7140060b2c0/'
-	'087f773e-34f7-45fb-a4f2-a78b000c6495/b9e412ea-f1ee-40db-a0f8-aaf5005d790d/podcast.rss')
+PERIOD_NAMES = {7: '1w', 30: '1m', 90: '3m', 180: '6m', 365: '1y'} # how performance's period is written
 
 
 @dataclasses.dataclass(frozen=True)
@@ -42,7 +40,7 @@ def period_args(action, schedule):
 	if action == 'movers':
 		return ['interday'] if days in (None, 1) else [str(days)]
 	if action == 'performance':
-		return [] if days is None else [str(days)]
+		return [] if days is None else [PERIOD_NAMES.get(days, str(days))]
 	return []
 
 
@@ -66,7 +64,7 @@ def message(key, date, lines, country=None, name=None):
 	that country's flag for {flag} (markets.flag); named after its first line unless it has a name."""
 	return Item(key, name or message_name(lines, country), 'message',
 		tuple(line.replace('{flag}', markets.flag(country or '')) for line in lines),
-		at({'day': int(date[3:]), 'months': [int(date[:2])]}), country)
+		at({'day': int(date[3:]), 'months': [int(date[:2])]}, REMINDERS), country)
 
 
 def message_name(lines, country=None, size=56):
@@ -106,16 +104,11 @@ ITEMS = (
 	Item('price-close-us', 'movers close US', 'movers', ('close',), at('weekdays', '16:30', NEW_YORK)),
 	Item('rating', 'rating', 'rating', (), at(TUE_SAT)),
 	Item('milestone', 'milestone', 'milestone', (), at(TUE_SAT)),
-	*(Item(f"podcasts-{name.lower().replace(' ', '-')}", f'podcasts {name}', 'podcasts', (feed,),
-		when.Schedule.from_json({'days': 'weekdays', 'every': 60, 'from': '10:01', 'to': '21:01', 'zone': SYDNEY}))
-		for name, feed in (('Money Cafe', MONEY_CAFE), ('Stocktake', STOCKTAKE))),
-	Item('earnings', 'earnings', 'earnings', (), at(['sun'])),
-	Item('shorts', 'shorts', 'shorts', (), at(['sun'])),
-	*periodic('weekly', ['sun']),
-	*periodic('monthly', {'day': 2}),
-	*periodic('quarterly', {'day': 2, 'months': [1, 4, 7, 10]}),
-	*periodic('bi-annual', {'day': 2, 'months': [1, 7]}),
-	*periodic('annual', {'day': 2, 'months': [1]}),
+	Item('earnings', 'earnings', 'earnings', (), at({'day': 1})),
+	Item('shorts', 'shorts', 'shorts', (), at(['sat'])),
+	*periodic('weekly', ['sat']),
+	*periodic('monthly', {'day': 1}),
+	*periodic('quarterly', {'day': 1, 'months': [1, 4, 7, 10]}),
 	message('message-eofy-world', '03-31', ['🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦']),
 	message('message-eofy-checklist', '06-23', EOFY_CHECKLIST, 'AU'),
 	message('message-eofy-au', '06-30', ['🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰']),

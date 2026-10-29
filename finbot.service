@@ -15,7 +15,7 @@ ExecReload=/bin/kill -HUP $MAINPID
 ExecStartPre=+/opt/finbot/util/check_config.py /etc/finbot.env
 Restart=on-failure
 RestartSec=30s
-StandardOutput=null
+StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=finbot
 Environment=PYTHONUNBUFFERED=1

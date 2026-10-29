@@ -1,12 +1,19 @@
-"""The log, syslog style: each line has a level, ERROR, WARN, INFO or DEBUG, and goes to stderr (which systemd and
-Docker take to the journal) when the log_level setting lets it in: that level and those above it, so ERROR always
-does. Each takes print()'s arguments. A line that can run long (a request's URL, a chat message) goes through cut(),
+"""The log, syslog style: each line has a level, ERROR, WARN, INFO or DEBUG, and goes to the journal (through the
+streams systemd and Docker take) when the log_level setting lets it in: that level and those above it, so ERROR always
+does. Warnings and errors go to stderr, info and debug to stdout, so that Docker's journald driver files them as
+err and info, and `journalctl -p warning` shows the first. Each takes print()'s arguments.
+Under journald (JOURNAL_STREAM is set) a line starts with its syslog priority,
+<3> to <7>, which journald takes off and files the line under, so journalctl colours and filters (-p) by it; anywhere
+else a line has no prefix. A line that can run long (a request's URL, a chat message) goes through cut(),
 which puts it on one line within the log_width setting."""
+import os
 import sys
 
 from lib import config
 
 LEVELS = config.LOG_LEVELS # ERROR WARN INFO DEBUG, the most severe first
+SPLIT = True # the tests send every level to stderr, as their captures read it; a test of its own turns it back on
+PRIORITIES = {'ERROR': 3, 'WARN': 4, 'INFO': 6, 'DEBUG': 7} # syslog's err, warning, info and debug
 
 
 def enabled(level):
@@ -14,10 +21,21 @@ def enabled(level):
 	return LEVELS.index(level) <= LEVELS.index(config.settings.log_level)
 
 
+def prefix(level):
+	"""What starts a line of this level: its syslog priority, as journald reads it, under journald, else nothing."""
+	return f'<{PRIORITIES[level]}>' if os.environ.get('JOURNAL_STREAM') else ''
+
+
+def stream(level):
+	"""Where a line of this level goes: stderr for ERROR and WARN, stdout for INFO and DEBUG, SPLIT aside."""
+	return sys.stdout if SPLIT and level in ('INFO', 'DEBUG') else sys.stderr
+
+
 def write(level, parts, options):
 	"""A line of these parts (and print()'s options) at this level, if log_level lets it in."""
 	if enabled(level):
-		print(*parts, file=sys.stderr, **options)
+		sep = str(options.pop('sep', None) or ' ')
+		print(prefix(level) + sep.join(str(part) for part in parts), file=stream(level), **options)
 
 
 def cut(text):

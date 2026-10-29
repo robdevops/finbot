@@ -119,7 +119,7 @@ class Conventions(unittest.TestCase):
 		self.assertEqual(found, [])
 
 	def test_the_bot_and_its_reports_print_only_to_stderr(self):
-		"""systemd discards stdout (StandardOutput=null), so only util/ tools, run by hand, may print there."""
+		"""The bot and its reports log through lib/log.py (stdout or stderr by level); only util/ tools print."""
 		offenders = []
 		for path in sorted([*Path(ROOT, 'lib').rglob('*.py'), *Path(ROOT).glob('*.py')]):
 			for node in ast.walk(ast.parse(path.read_text())):
