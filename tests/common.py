@@ -14,7 +14,7 @@ os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegr
 
 import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, jobs, links, markets, net
-from lib import render, sharesight, shortman, state, transports, watchlist, when, worker, yahoo
+from lib import log, render, sharesight, shortman, state, transports, watchlist, when, worker, yahoo
 from lib import discord_common, slack_common, telegram_common # each network's reader and bot
 from lib.reports import about, earnings, history, holdings, milestone, movers, performance, profile, rankings, rating
 from lib.reports import shorts, trades
@@ -90,6 +90,9 @@ def market_entry(ticker):
 			'ex_dividend_date': NOW + 86400 * 3, 'recommend': 'buy' if i % 2 else 'sell',
 			'recommend_index': 1.2 if i % 2 else 4.2, 'recommend_analysts': 8, 'price_to_earnings_peg': 1.2,
 			'currency': 'USD'}
+
+
+log.SPLIT = False # every level goes to stderr, where the tests read the log; test_edges.LogStreams splits it
 
 
 class FinbotCase(unittest.TestCase):

@@ -240,8 +240,10 @@ An open PR takes in every commit pushed to its branch, so a PR opened for one sm
   when it uploads a chart's image: Telegram's `with_photo`), and a success answered to
   a network). The
   `log_level` setting sets what reaches the log; `lib/config.py` prints its own errors (it loads before
-  settings exist). Everything goes to stderr: systemd discards stdout (`StandardOutput=null`), so the bot and its reports
-  never print there (a test checks); only the util/ tools, run by hand, do.
+  settings exist). Errors and warnings go to stderr, info and debug to stdout (`log.stream`; Docker's journald driver files them as err and
+  info), each line starting with its syslog priority under systemd (`<3>`..`<7>`, `log.prefix`); the bot and its reports
+  never `print` otherwise (a test checks), only the util/ tools, run by hand, do. The tests send every level to stderr
+  (`log.SPLIT`).
 - A report gives its chart as a `render.Chart` spec, not a drawing: `deliver()` draws it only for a chat that takes
   charts, through `render.draw()`, which caches the image by the spec's hash (and the drawing code's), kept until
   cleanup: a spec's image never goes stale. Every chart's subtitle ends with the date it shows, or the dates it spans

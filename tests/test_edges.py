@@ -424,6 +424,18 @@ class LogLevels(FinbotCase):
 			with self.subTest(log_level=level):
 				self.assertEqual(self.logged(level, each), list(shown))
 
+	def test_errors_and_warnings_go_to_stderr_and_info_and_debug_to_stdout(self):
+		"""Docker's journald driver files stderr as err and stdout as info: warnings and errors are the first,
+		info and debug the second."""
+		self.settings(log_level='DEBUG')
+		with mock.patch.object(log, 'SPLIT', True), contextlib.redirect_stderr(io.StringIO()) as err, \
+				contextlib.redirect_stdout(io.StringIO()) as out:
+			log.error('e')
+			log.warn('w')
+			log.info('i')
+			log.debug('d')
+		self.assertEqual((err.getvalue().splitlines(), out.getvalue().splitlines()), (['e', 'w'], ['i', 'd']))
+
 	def test_under_journald_each_line_starts_with_its_syslog_priority(self):
 		"""With JOURNAL_STREAM set, a line starts with <3> (error), <4> (warning), <6> (info) or <7> (debug), which
 		journald takes off and files the line under; a line's print() separator is kept."""
@@ -433,7 +445,7 @@ class LogLevels(FinbotCase):
 			log.warn('w', 'x', sep='-')
 			log.info('i')
 			log.debug('d')
-		with unittest.mock.patch.dict(os.environ, {'JOURNAL_STREAM': '8:1234'}):
+		with mock.patch.dict(os.environ, {'JOURNAL_STREAM': '8:1234'}):
 			self.assertEqual(self.logged('DEBUG', each), ['<3>e x', '<4>w-x', '<6>i', '<7>d'])
 
 	def test_a_cache_miss_hit_or_write_is_debug(self):
@@ -537,7 +549,7 @@ class SharedSession(unittest.TestCase):
 		clock, cleared = [1000.0], []
 		adapter = type('Adapter', (), {'poolmanager': type('Pools', (), {'clear': lambda self: cleared.append(1)})()})()
 		with mock.patch.object(net.time, 'monotonic', lambda: clock[0]), mock.patch.object(net.session, 'get_adapter',
-				lambda url: adapter), unittest.mock.patch.dict(net._used, clear=True):
+				lambda url: adapter), mock.patch.dict(net._used, clear=True):
 			net.fresh('https://api.telegram.org/bot1/sendPhoto') # the first use of a host
 			clock[0] += net.IDLE_SECONDS - 1
 			net.fresh('https://api.telegram.org/bot1/sendMessage') # used a moment ago
@@ -646,11 +658,11 @@ class OptionalLibraries(unittest.TestCase):
 		"""With no webhook set, bot.py starts with the optional libraries blocked: no HTTP server, so no waitress."""
 		with tempfile.TemporaryDirectory() as data:
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=self.blocked(data),
-				stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+				stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 			self.addCleanup(proc.wait)
 			self.addCleanup(proc.kill)
 			lines = []
-			for line in proc.stderr:
+			for line in proc.stdout:
 				lines.append(line)
 				if line.startswith('finbot is running'):
 					break
@@ -667,8 +679,8 @@ class StartupSignals(unittest.TestCase):
 			no_jobs(data)
 			env = bare_environment()
 			env.update(DATA_DIR=data, port='0')
-			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
-				stdout=subprocess.DEVNULL, text=True)
+			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stdout=subprocess.PIPE,
+				stderr=subprocess.STDOUT, text=True)
 			self.addCleanup(proc.wait)
 			self.addCleanup(proc.kill)
 			deadline = time.monotonic() + 30
@@ -678,13 +690,13 @@ class StartupSignals(unittest.TestCase):
 				time.sleep(0.001)
 			proc.send_signal(signal.SIGHUP) # still importing: the default action would kill it
 			lines = []
-			for line in proc.stderr:
+			for line in proc.stdout:
 				lines.append(line)
 				if line.startswith('finbot is running'): # the handlers are in
 					break
 			self.assertIsNone(proc.poll(), ''.join(lines))
 			proc.send_signal(signal.SIGHUP)
-			for line in proc.stderr: # a reload now runs (there is no settings.conf here, so it says so)
+			for line in proc.stdout: # a reload now runs (there is no settings.conf here, so it says so)
 				lines.append(line)
 				if 'reload requested' in line:
 					break
@@ -705,8 +717,8 @@ class StartupSignals(unittest.TestCase):
 			no_jobs(data)
 			env = bare_environment()
 			env.update(DATA_DIR=data, port='0')
-			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stderr=subprocess.PIPE,
-				stdout=subprocess.DEVNULL, text=True)
+			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stdout=subprocess.PIPE,
+				stderr=subprocess.STDOUT, text=True)
 			self.addCleanup(proc.wait)
 			self.addCleanup(proc.kill)
 			deadline = time.monotonic() + 30
@@ -716,14 +728,14 @@ class StartupSignals(unittest.TestCase):
 				time.sleep(0.001)
 			proc.send_signal(signal.SIGUSR1) # still starting: ignored, where its default action would kill the bot
 			lines = []
-			for line in proc.stderr:
+			for line in proc.stdout:
 				lines.append(line)
 				if line.startswith('finbot is running'): # the handlers are in
 					break
 			self.assertIsNone(proc.poll(), ''.join(lines))
 			self.assertEqual(len(os.listdir(cache)), 4) # nothing flushed yet
 			proc.send_signal(signal.SIGUSR1)
-			for line in proc.stderr:
+			for line in proc.stdout:
 				lines.append(line)
 				if 'cache: warm jobs done' in line: # each in a child process, as the scheduler is off
 					break

@@ -71,6 +71,9 @@ it there too:
 journalctl CONTAINER_NAME=finbot -f
 ```
 
+finbot logs its warnings and errors to stderr and the rest to stdout, which journald files as priority `err` (red) and
+`info`, so `journalctl CONTAINER_NAME=finbot -p warning` shows the problems alone.
+
 Elsewhere, Docker keeps the log itself (its `local` driver, which rotates it), and `docker compose logs` is the way to
 read it. That log is lost when the container is rebuilt.
 
