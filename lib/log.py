@@ -1,12 +1,16 @@
 """The log, syslog style: each line has a level, ERROR, WARN, INFO or DEBUG, and goes to stderr (which systemd and
 Docker take to the journal) when the log_level setting lets it in: that level and those above it, so ERROR always
-does. Each takes print()'s arguments. A line that can run long (a request's URL, a chat message) goes through cut(),
+does. Each takes print()'s arguments. Under journald (JOURNAL_STREAM is set) a line starts with its syslog priority,
+<3> to <7>, which journald takes off and files the line under, so journalctl colours and filters (-p) by it; anywhere
+else a line has no prefix. A line that can run long (a request's URL, a chat message) goes through cut(),
 which puts it on one line within the log_width setting."""
+import os
 import sys
 
 from lib import config
 
 LEVELS = config.LOG_LEVELS # ERROR WARN INFO DEBUG, the most severe first
+PRIORITIES = {'ERROR': 3, 'WARN': 4, 'INFO': 6, 'DEBUG': 7} # syslog's err, warning, info and debug
 
 
 def enabled(level):
@@ -14,10 +18,16 @@ def enabled(level):
 	return LEVELS.index(level) <= LEVELS.index(config.settings.log_level)
 
 
+def prefix(level):
+	"""What starts a line of this level: its syslog priority, as journald reads it, under journald, else nothing."""
+	return f'<{PRIORITIES[level]}>' if os.environ.get('JOURNAL_STREAM') else ''
+
+
 def write(level, parts, options):
 	"""A line of these parts (and print()'s options) at this level, if log_level lets it in."""
 	if enabled(level):
-		print(*parts, file=sys.stderr, **options)
+		sep = str(options.pop('sep', None) or ' ')
+		print(prefix(level) + sep.join(str(part) for part in parts), file=sys.stderr, **options)
 
 
 def cut(text):

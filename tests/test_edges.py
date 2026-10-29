@@ -1,6 +1,6 @@
 """Failure and no-data scenarios: empty or broken upstream data, bad arguments, unknown portfolios, secrets
 kept out of logs, and the bot's signals."""
-import contextlib, io, os, re, signal, subprocess, sys, tempfile, threading, time, unittest
+import contextlib, io, os, re, signal, subprocess, sys, tempfile, threading, time, unittest, unittest.mock
 from pathlib import Path
 from tests.common import *
 from lib import log
@@ -424,6 +424,18 @@ class LogLevels(FinbotCase):
 			with self.subTest(log_level=level):
 				self.assertEqual(self.logged(level, each), list(shown))
 
+	def test_under_journald_each_line_starts_with_its_syslog_priority(self):
+		"""With JOURNAL_STREAM set, a line starts with <3> (error), <4> (warning), <6> (info) or <7> (debug), which
+		journald takes off and files the line under; a line's print() separator is kept."""
+		def each():
+			"""A line at each level."""
+			log.error('e', 'x')
+			log.warn('w', 'x', sep='-')
+			log.info('i')
+			log.debug('d')
+		with unittest.mock.patch.dict(os.environ, {'JOURNAL_STREAM': '8:1234'}):
+			self.assertEqual(self.logged('DEBUG', each), ['<3>e x', '<4>w-x', '<6>i', '<7>d'])
+
 	def test_a_cache_miss_hit_or_write_is_debug(self):
 		"""A cache miss (of a file not there, or too old), a hit, and the write after a miss are logged at DEBUG only:
 		at INFO, the request a miss sends is the line."""
@@ -525,7 +537,7 @@ class SharedSession(unittest.TestCase):
 		clock, cleared = [1000.0], []
 		adapter = type('Adapter', (), {'poolmanager': type('Pools', (), {'clear': lambda self: cleared.append(1)})()})()
 		with mock.patch.object(net.time, 'monotonic', lambda: clock[0]), mock.patch.object(net.session, 'get_adapter',
-				lambda url: adapter), mock.patch.dict(net._used, clear=True):
+				lambda url: adapter), unittest.mock.patch.dict(net._used, clear=True):
 			net.fresh('https://api.telegram.org/bot1/sendPhoto') # the first use of a host
 			clock[0] += net.IDLE_SECONDS - 1
 			net.fresh('https://api.telegram.org/bot1/sendMessage') # used a moment ago
