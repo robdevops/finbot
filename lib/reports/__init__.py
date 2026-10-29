@@ -6,18 +6,24 @@ lists (one without takes none: jobs.job_args); the scheduler runs them in the bo
 now. And the chat-only reports: about (.help, .jobs), history (.price, also called .compare and .history), holdings
 (.holdings, .who, .treemap, .watchlist), pick (the pickers' buttons), profile (.SYMBOL) and rankings (.marketcap, .ratio
 and the rest)."""
+from lib import formats
 
 
-def optional_days(name, key):
-	"""The job() of a report, called name, whose scheduled run may give a number of days (its run's argument `key`):
-	its label is its name, with the days where given; anything else raises ValueError with what it takes."""
+def optional_days(name, key, usage='[DAYS]'):
+	"""The job() of a report, called name, whose scheduled run may give a period (its run's argument `key`, in days):
+	a number of days, or a period as a chat command takes it (7d, 1w, 3m, ytd); its label is its name, with the period
+	as given; anything else raises ValueError with `usage`, what it takes."""
 	def job(argv):
 		"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 		match argv:
 			case []:
 				return name, {}
-			case [days] if days.isdigit():
-				return f'{name} {days}', {key: int(days)}
+			case [period]:
+				try:
+					days = formats.days_from_human_days(period)
+				except ValueError:
+					raise ValueError(usage) from None
+				return f'{name} {period}', {key: days}
 			case _:
-				raise ValueError('[DAYS]')
+				raise ValueError(usage)
 	return job

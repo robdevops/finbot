@@ -56,5 +56,5 @@ def run(chat, *, past_days=None, portfolio_select=None):
 	delivery.deliver(chat, delivery.Report(payload, graph, buttons.keyboard(*attached)))
 	return attached
 
-ARGUMENTS = '[DAYS]' # what a scheduled run takes
-job = reports.optional_days('performance', 'past_days')
+ARGUMENTS = '[PERIOD]' # what a scheduled run takes
+job = reports.optional_days('performance', 'past_days', ARGUMENTS)

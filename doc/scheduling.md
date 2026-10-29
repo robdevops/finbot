@@ -17,11 +17,11 @@ never run, its name and its schedule in words. Under the list, in italics, is ho
 
 * not run yet
 
-/jobs add REPORT SCHEDULE
+/jobs add REPORT [ARGUMENT] [SCHEDULE]
 /jobs add reminder SCHEDULE "TEXT"
 ```
 Under it is one row of buttons, each there only where it has something to act on (**+** always; **Edit** and **Run...** with any job, **Upcoming** with one that is on). Each screen is drawn in place of the last:
-* **+**: what the job runs, how often, then the rest down to the minute ([below](#add-step-by-step)).
+* **+**: what the job runs (for `movers` and `performance`, then its period: 1d, 7d, 1w, 1m, 3m or 1y), how often, then the rest down to the minute ([below](#add-step-by-step)).
 * **Edit**: the list with a button per job, the default ones too; a press selects the job (its button turns red, on Telegram, Slack and Discord alike) or takes it out of the selection again. It starts with the jobs that are off selected, and nothing changes until **OK**, which switches the selected jobs off and the rest on. **OK** shows only where the selection differs from the jobs as they are, and **Delete** only while any job is selected; **Delete** asks first ("Delete the 3 selected jobs?"), then deletes them. **Select all** selects every job, and reads **Select none** once all are selected. **Cancel** goes back to the list, whatever was selected. A default job that is deleted comes back when the same job is added again.
 * **Run...**: a button per job; a press runs it now, as its schedule would. What the job posts shows it ran; a
   message says so only when it failed, or was running already. The same button pressed again within a minute does
@@ -53,7 +53,8 @@ them; `/treemap`, `/holdings` and `/price` run as typed bare. Then how often:
 
 A span across days (`every 20 mins from mon 9am to sat 3pm`), or a window of hours across midnight, is typed. The last
 screen is the whole list, headed "Added", the new job in bold with a 👉 before it, with the list's buttons (**+** adds another). A job added by
-`/jobs add` shows the same.
+`/jobs add` shows the same. `/jobs add performance 3m`, a report (and its one argument) without a schedule, opens the
+same buttons at the how-often step, the argument carried to the job.
 
 Or type:
 ```
@@ -62,6 +63,7 @@ Or type:
 /jobs system               the system jobs
 /jobs add                  what a job can run, what each takes, and examples
 /jobs add movers weekly
+/jobs add performance 3m      a report and its argument alone: buttons ask the rest
 /jobs add movers close weekdays at 4:30pm New York
 /jobs add peg top weekly
 /jobs add price AAPL MSFT 1y monthly
@@ -92,8 +94,8 @@ A job is a report and what it takes, then when it runs:
     4:30pm New York (7:30am local, Tue–Sat)`. A zone that keeps another clock is named in every season: a Brisbane job
     seen from Melbourne reads `weekdays at 9:00am Brisbane` in winter, when both clocks agree.
 
-The reports are `trades`, `movers midsession|interday|premarket|close|DAYS`, `earnings`,
-`performance [DAYS]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added
+The reports are `trades`, `movers midsession|interday|premarket|close|PERIOD`, `earnings`,
+`performance [PERIOD]`, `rating`, `milestone`, `shorts`, `podcasts FEED_URL` and `reminder "TEXT"` (`message` works too). A job a chat added
 as `price` before the movers report took its name runs as `movers`; `price` in a job added now is the line chart.
 
 A job can also run a command of `/help`, with what it takes, and posts what the command posts when typed in the chat:

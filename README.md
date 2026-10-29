@@ -22,34 +22,33 @@ Run finbot with Docker or with Python.
 
 ### With Docker
 On a Linux host with Docker:
-1. `git clone https://github.com/robdevops/finbot /opt/finbot`
-2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set the keys of each network you use in `/opt/finbot.env` (below)
+1. `sudo git clone https://github.com/robdevops/finbot /opt/finbot`
+2. `sudo /opt/finbot/util/docker_setup.sh`, which makes `/etc/finbot.env` from its template
+3. Set the keys of each network you use in `/etc/finbot.env` (below)
 4. `cd /opt/finbot && sudo docker compose up -d --build`
-5. `journalctl CONTAINER_NAME=finbot -f`
+5. `sudo docker compose logs -f`
 
 ### With Python
-On Linux, macOS or WSL, with Python 3.12 or later:
-1. `git clone https://github.com/robdevops/finbot ~/finbot && cd ~/finbot`
-2. `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt -r requirements-optional.txt` (on Debian and
-   Ubuntu, `sudo apt install python3-venv` first)
-3. `cp defaults/finbot.env ~/finbot.env && chmod 600 ~/finbot.env`, then set the keys of each network you use in it
-   (below)
-4. `.venv/bin/python util/check_config.py ~/finbot.env`
-5. `(set -a && . ~/finbot.env && exec .venv/bin/python bot.py)`, which logs to the terminal until Ctrl-C
+On Linux, macOS or WSL, with Python 3.12 or later and its `venv` module:
+1. `sudo git clone https://github.com/robdevops/finbot /opt/finbot && cd /opt/finbot`
+2. `sudo python3 -m venv .venv && sudo .venv/bin/pip install -r requirements.txt -r requirements-optional.txt`
+3. `sudo cp defaults/finbot.env /etc/finbot.env && sudo chmod 600 /etc/finbot.env`, then set the keys of each network
+   you use in it (below)
+4. `sudo .venv/bin/python util/check_config.py /etc/finbot.env`
+5. `sudo sh -c 'set -a && . /etc/finbot.env && exec .venv/bin/python bot.py'`, which logs to the terminal until Ctrl-C
 
 To run it as a service, under systemd on a Debian host, see [doc/install.md](doc/install.md).
 
 ### The chat networks
 By default, finbot fetches its updates from each network itself (pull mode), which is what this quick start guide covers.
 Alternatively, if you prefer to run an HTTPS gateway (a reverse proxy on a domain with a valid certificate), push mode
-subscribes the bot to the updates each network pushes to it (see each guide's _push mode_).
-* **Telegram:** create the bot with [@BotFather](https://telegram.me/BotFather), set `telegramBotToken`, restart
+subscribes the bot to the updates each network pushes to it.
+* **Telegram:** create the bot with [@BotFather](https://telegram.me/BotFather), set `telegramBotToken` in the env file, restart
   finbot ([guide](doc/telegram.md)).
 * **Slack:** create the app from the manifest that `util/slack_manifest.py` prints, add an app-level token, set
-  `slackBotToken` and `slackAppToken`, restart finbot ([guide](doc/slack.md)).
-* **Discord:** create the application and its bot, turn on its Message Content intent, set `discordBotToken`, restart
-  finbot ([guide](doc/discord.md)).
+  `slackBotToken` and `slackAppToken` in the env file, restart finbot ([guide](doc/slack.md)).
+* **Discord:** create the application and its bot, turn on its Message Content intent, set `discordBotToken` in the env file,
+  restart finbot ([guide](doc/discord.md)).
 
 Then send `/help` in a chat with the bot. Commands work as plain messages too (`.help`), which are quicker to type on a
 phone ([Commands](doc/commands.md#supported-commands)). From its first command, each chat has the default scheduled

@@ -1,5 +1,5 @@
 # finbot in a container, on Debian with Debian's own python3 packages (no pip), as on a Debian host. Every optional
-# library is in, so the image runs every network in either mode. The startup file and DATA_DIR stay outside the image:
+# library is in, so the image runs every network in either mode. The startup env and DATA_DIR stay outside the image:
 # see compose.yaml and doc/docker.md.
 FROM debian:trixie-slim
 
@@ -23,5 +23,5 @@ ARG GIT_COMMIT=unknown
 ENV FINBOT_COMMIT=$GIT_COMMIT PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 DATA_DIR=/data HOME=/tmp
 USER finbot
 
-# each start: copy the defaults missing from /data, check the startup file, and only then start the bot
+# each start: copy the defaults missing from /data, check the startup env, and only then start the bot
 CMD ["sh", "-c", "util/sync_defaults.py --apply && util/check_config.py /run/finbot.env && exec ./bot.py"]

@@ -1,100 +1,151 @@
 # Installing on a host
 
-finbot runs wherever Python 3.12 or later does (Linux, macOS, WSL); production runs Debian's own packages under
-systemd, as below. To run it in a container instead, see [docker.md](docker.md).
+finbot runs wherever Python 3.12 or later does (Linux, macOS, WSL). It is developed and most tested on Debian with
+Debian's packaged python modules.
+
+To run it in a container instead, see [docker.md](docker.md).
 
 ## Requirements
-* Most features need a Sharesight paid plan, preferably with automatic trade imports, and an API key
-  ([configuration.md](configuration.md#sharesight)).
-* A Telegram bot, a Slack app or a Discord bot: see the network's guide, [Telegram](telegram.md), [Slack](slack.md) or
+
+* Most features need a Sharesight paid plan and an API key ([configuration.md](configuration.md#sharesight)).
+
+* A Telegram bot, a Slack app or a Discord bot: see its guide, [Telegram](telegram.md), [Slack](slack.md) or
   [Discord](discord.md).
-* By default, finbot fetches its updates from each network itself (pull mode: Telegram's long polling, Slack's Socket
-  Mode, Discord's gateway API). It only makes outgoing connections, so nothing has to listen on the internet.
-  Alternatively, if you prefer to run an HTTPS gateway (a web server with a domain name and a matching certificate),
-  Push mode subscribes the bot to push updates: each network posts its updates to the gateway, which passes them to
-  the bot (each guide's _push mode_).
-* Python 3.13.5 (the version in `.python-version`; 3.12 is the minimum), and these modules, pinned to versions with
-  3.13 support in `requirements.txt`: requests, and Pillow for the charts. The charts are drawn in DejaVu Sans, which
-  most Linux systems have (Debian: `fonts-dejavu-core`); without it, Pillow's own font stands in.
-* For a network in push mode (its webhook URL set), also waitress; for Slack's Socket Mode and Discord's gateway API,
-  websocket-client; for Discord's push mode, PyNaCl. These are in `requirements-optional.txt`, each imported only by
-  the modes that need it. Docker and a Python venv install them all, Docker in its image and a venv
-  from that file, so every mode works without choosing; on a Debian host, install the packages of the modes you use.
+
+* Python 3.13.5 (3.12 is the minimum), with `requests` and Pillow for the charts. The charts use DejaVu Sans, which most
+  Linux systems have (Debian: `fonts-dejavu-core`).
+
+* By default, finbot fetches its updates from your chatbot itself (pull mode). It only makes outgoing connections, so
+  nothing has to listen on the internet.
+
+  Push mode is the alternative: your chatbot posts its updates to an HTTPS server you run.
+
+* One more library, for the way you receive updates:
+
+  * `waitress` for push mode
+  * `websocket-client` for Slack or Discord in pull mode
+  * `PyNaCl` for Discord in push mode
+
+  Docker and the venv below install them all. On Debian, install the ones you need.
 
 ## Debian
-1. The packages, and those of the modes you use:
+
+1. Install the core dependencies, plus those for one or more chat methods:
+
    ```
    sudo apt install git python3 python3-requests python3-pil fonts-dejavu-core
-   sudo apt install python3-waitress     # any network in push mode
-   sudo apt install python3-websocket    # Slack's Socket Mode, Discord's gateway API
-   sudo apt install python3-nacl         # Discord's push mode
+
+   # Slack or Discord in pull mode
+   sudo apt install python3-websocket
+
+   # Telegram or Slack in push mode
+   sudo apt install python3-waitress
+
+   # Discord in push mode
+   sudo apt install python3-nacl python3-waitress
    ```
-2. The code, in `/opt/finbot` (not under `/home`: the service unit hides it):
+
+2. Get the code, in `/opt/finbot`:
+
    ```
    sudo git clone https://github.com/robdevops/finbot.git /opt/finbot
    ```
-3. The startup file, from its template; then set each network's keys from its guide, and Sharesight's:
+
+3. Make the startup env file from its template:
+
    ```
-   sudo cp /opt/finbot/defaults/finbot.env /opt/finbot.env && sudo chmod 600 /opt/finbot.env && sudo chown root:root /opt/finbot.env
-   sudoedit /opt/finbot.env
+   sudo cp /opt/finbot/defaults/finbot.env /etc/finbot.env && sudo chmod 600 /etc/finbot.env && sudo chown root:root /etc/finbot.env
    ```
-4. Check it: `/opt/finbot/util/check_config.py /opt/finbot.env` (it also warns if the file is not `600 root:root`)
-5. Run it under systemd ([below](#daemonize-systemd)). The first start makes the data directory, `/var/lib/finbot`
-   (systemd keeps it in `/var/lib/private/finbot`, where `/var/lib/finbot` points); each chat then has the default
-   scheduled jobs, which `/jobs` changes ([scheduling.md](scheduling.md)).
-6. Optional, to change settings: copy the starter `settings.conf` into the data directory, edit it, check it and reload
-   (`util/sync_defaults.py` and `util/check_config.py` find the service's data directory when run by hand; run them
-   with `sudo`, as the directory is the service's):
+
+   Then add your chatbot's API key (see its guide above), and Sharesight's:
+
+   ```
+   sudoedit /etc/finbot.env
+   ```
+
+4. Check it:
+
+   ```
+   /opt/finbot/util/check_config.py /etc/finbot.env
+   ```
+
+5. Run it under systemd, [below](#daemonize-systemd).
+
+6. Optional, to change settings. Copy the `settings.conf` template, edit it, check it, and reload:
+
    ```
    sudo /opt/finbot/util/sync_defaults.py --apply
    sudoedit /var/lib/finbot/settings.conf
-   sudo /opt/finbot/util/check_config.py /opt/finbot.env
+   sudo /opt/finbot/util/check_config.py /etc/finbot.env
    sudo systemctl reload finbot
    ```
-   The files are root-owned and readable, so the service reads them; systemd gives the directory to the service's user
-   again at the next start. Leave `DATA_DIR` unset: under the unit, only the state directory is writable.
 
 [configuration.md](configuration.md) has every key and setting.
 
 ## Anywhere else: a Python venv
-On Linux, macOS or WSL, with git and Python 3.12 or later (on Debian and Ubuntu, also `python3-venv`):
+
+For macOS, WSL, or any setup that does not use the Debian packages. You need git, and Python 3.12 or later with its
+`venv` module.
+
+Use the same paths as the Debian steps, so the service below works unchanged:
+
 ```
-git clone https://github.com/robdevops/finbot.git ~/finbot
-cd ~/finbot
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt -r requirements-optional.txt
+sudo git clone https://github.com/robdevops/finbot.git /opt/finbot
+cd /opt/finbot
+sudo python3 -m venv .venv
+sudo .venv/bin/pip install -r requirements.txt -r requirements-optional.txt
 ```
-Or, with [uv](https://docs.astral.sh/uv/), which also fetches the exact Python from `.python-version`:
+
+Make the startup env file as in step 3 above, then check it:
+
 ```
-uv venv && uv pip install -r requirements.txt -r requirements-optional.txt
+sudo /opt/finbot/.venv/bin/python /opt/finbot/util/check_config.py /etc/finbot.env
 ```
-`requirements-optional.txt` installs the library of every mode; it can be cut down to the modes you use. Then make the
-startup file as in step 3 above (anywhere: `~/finbot.env`, say), check it, and start the bot with its values in its
-environment:
+
+To try the bot by hand:
+
 ```
-.venv/bin/python util/check_config.py ~/finbot.env
-(set -a && . ~/finbot.env && exec .venv/bin/python bot.py)
+sudo sh -c 'set -a && . /etc/finbot.env && exec /opt/finbot/.venv/bin/python /opt/finbot/bot.py'
 ```
-Under systemd (below), with the checkout in `/opt/finbot` and its venv made there, `ExecStart=` runs the venv's Python:
-`/opt/finbot/.venv/bin/python /opt/finbot/bot.py`.
+
+For a service, use systemd, below.
 
 ## Daemonize (systemd)
-`finbot.service` can take care of keeping `bot.py` running in the background and starting it on boot. It expects the
-checkout in `/opt/finbot` and the startup file at `/opt/finbot.env` (see [`finbot.env`](configuration.md#finbotenv)),
-as above, and needs no editing then. Copy it to `/etc/systemd/system/`, then enable and start it.
-`systemctl reload finbot` re-reads `settings.conf` without a restart; a change to `finbot.env` needs
-`systemctl restart finbot`:
+
+`finbot.service` runs finbot as a systemd service: it starts on boot, and restarts after a failure.
+
+It expects the Git checkout in `/opt/finbot` and the startup env file at `/etc/finbot.env`, as above.
+
 ```
 sudo cp -v /opt/finbot/finbot.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable finbot --now
 ```
-The unit runs finbot as a throwaway user (`DynamicUser=yes`) with its state in `/var/lib/finbot`, inside a sandbox: a
-read-only filesystem but for that directory, no access to `/home`, `/boot`, `/media` or `/mnt`, no privileges, no
-executable writable memory, and only the ordinary system calls and network families. Hence the checkout must not be
-under `/home`. `systemd-analyze security finbot` scores it. `MemoryMax` and `TasksMax` are starting values: after a few
-days, read `systemctl show finbot -p MemoryPeak -p TasksCurrent` and adjust them.
-The bot's log:
+
+finbot's data (its state and settings) is in `/var/lib/finbot`.
+
+After a change, `sudo systemctl reload finbot` re-reads `settings.conf`. A change to `finbot.env` needs
+`sudo systemctl restart finbot`.
+
+The log:
+
 ```
 journalctl -fu finbot
 ```
+
+### Hardening (recommended)
+
+An optional file adds a sandbox to the unit. finbot can then only write to `/var/lib/finbot`, and
+gets no privileges.
+
+```
+sudo mkdir -p /etc/systemd/system/finbot.service.d
+sudo cp -v /opt/finbot/finbot.service.d/hardening.conf /etc/systemd/system/finbot.service.d/
+sudo systemctl daemon-reload && sudo systemctl restart finbot
+```
+
+It needs the Git checkout outside `/home`, as in `/opt/finbot`.
+
+`systemd-analyze security finbot` scores the result: about 1.3 (OK) with the file, about 8 (exposed) without.
+
+If the sandbox ever gets in the way, delete the file and restart finbot.

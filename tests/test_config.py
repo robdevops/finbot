@@ -1,4 +1,4 @@
-"""The two config files: finbot.env (the startup file, which the launcher loads) and settings.conf (reloadable)."""
+"""The two config files: finbot.env (the startup env, which the launcher loads) and settings.conf (reloadable)."""
 import ast, contextlib, dataclasses, io, os, re, shutil, subprocess, sys, types, unittest
 from pathlib import Path
 from unittest import mock
@@ -224,11 +224,11 @@ class Parsing(unittest.TestCase):
 			"""What os.stat says of a file with this mode, owner and group."""
 			return types.SimpleNamespace(st_mode=0o100000 | mode, st_uid=uid, st_gid=gid)
 		with mock.patch.object(check_config.os, 'stat', return_value=stat_of(0o600)):
-			self.assertEqual(check_config.permission_warnings('/opt/finbot.env'), [])
+			self.assertEqual(check_config.permission_warnings('/etc/finbot.env'), [])
 		with mock.patch.object(check_config.os, 'stat', return_value=stat_of(0o644)):
-			warning, = check_config.permission_warnings('/opt/finbot.env')
-		self.assertIn('/opt/finbot.env is 644 root:root, not 600 root:root', warning)
-		self.assertIn('chmod 600 /opt/finbot.env && chown root:root /opt/finbot.env', warning)
+			warning, = check_config.permission_warnings('/etc/finbot.env')
+		self.assertIn('/etc/finbot.env is 644 root:root, not 600 root:root', warning)
+		self.assertIn('chmod 600 /etc/finbot.env && chown root:root /etc/finbot.env', warning)
 		with mock.patch.object(check_config.os, 'stat', return_value=stat_of(0o600, uid=54321, gid=54321)):
 			self.assertIn('600 54321:54321, not 600 root:root', check_config.permission_warnings('x')[0])
 		self.assertEqual(check_config.permission_warnings('/no/such/finbot.env'), [])

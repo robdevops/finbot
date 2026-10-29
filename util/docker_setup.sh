@@ -1,14 +1,14 @@
 #!/bin/sh
 # The host side of finbot's Docker install, set up once, as root; safe to run again (doc/docker.md). Beside the
-# checkout, where compose.yaml looks for them: ../finbot-data (DATA_DIR) made, the defaults copied in, owned by the
-# container's user (10001); and ../finbot.env from the template if there is none, readable by root and the container's
-# group only. Cloned to /opt/finbot, they are /opt/finbot-data and /opt/finbot.env.
+# checkout, where compose.yaml looks for it: ../finbot-data (DATA_DIR) made, the defaults copied in, owned by the
+# container's user (10001), so /opt/finbot-data for a checkout in /opt/finbot; and /etc/finbot.env, the startup env,
+# from the template if there is none, readable by root and the container's group only.
 set -eu
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 parent=$(dirname "$repo")
 data="$parent/finbot-data"
-startup="$parent/finbot.env"
+startup=/etc/finbot.env
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "docker_setup: run it as root: sudo $0" >&2
@@ -25,10 +25,17 @@ fi
 chown root:10001 "$startup"
 chmod 640 "$startup"
 
+# the host's journal takes the log where journald runs, so that it outlasts a rebuild; Docker's own `local` driver
+# (compose.yaml's default) elsewhere. Never replaces a .env that is there already
+if [ -S /run/systemd/journal/socket ] && [ ! -e "$repo/.env" ]; then
+	echo "FINBOT_LOG_DRIVER=journald" > "$repo/.env"
+	echo "docker_setup: the log goes to the journal ($repo/.env)"
+fi
+
 cat <<NEXT
 
 Next:
-  1. Set telegramBotToken and telegramChatID (or another network's keys) in $startup
+  1. Set your chatbot's API key in $startup (telegramBotToken for Telegram; see doc/)
   2. cd $repo && sudo docker compose up -d --build
-  3. journalctl CONTAINER_NAME=finbot -f
+  3. sudo docker compose logs -f
 NEXT

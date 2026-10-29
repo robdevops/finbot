@@ -38,7 +38,7 @@ Where:
 /holdings [portfolio]
 /jobs [upcoming|system]
 /jobs enable|disable|delete|run [number]
-/jobs add report schedule
+/jobs add report [argument] [schedule]
 /jobs add reminder schedule "text"
 /marketcap [symbol|top|bottom]
 /movers [percent|top|bottom|session|premarket] [period]
@@ -156,7 +156,7 @@ demote_volatile=True
 
 Job (see [Scheduling](scheduling.md)), such as `/jobs add movers close weekdays at 4:30pm New York`:
 ```
-movers premarket|midsession|interday|close|DAYS
+movers premarket|midsession|interday|close|PERIOD
 ```
 When scheduled, the mode is its argument:
 * If `premarket` is passed, it only reports on pre/post market price movements.
@@ -204,7 +204,7 @@ past_days=28
 
 Job (see [Scheduling](scheduling.md)), such as `/jobs add performance weekly`:
 ```
-performance [DAYS]
+performance [PERIOD]
 ```
 
 Command:

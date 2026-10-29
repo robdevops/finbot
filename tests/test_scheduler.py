@@ -658,8 +658,8 @@ class JobsInChat(ChatBase):
 		and examples."""
 		lines = self.say('.jobs add')
 		self.assertEqual(lines[0], '<b>What a job can run:</b>')
-		for line in ('reminder "TEXT"', 'performance [DAYS]', 'podcasts FEED_URL',
-				'movers midsession|interday|premarket|close|DAYS', 'trades', '.jobs add movers weekly', 'beta',
+		for line in ('reminder "TEXT"', 'performance [PERIOD]', 'podcasts FEED_URL',
+				'movers midsession|interday|premarket|close|PERIOD', 'trades', '.jobs add movers weekly', 'beta',
 				'ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]',
 				'price [SYMBOL ... up to 8] [period]', '.jobs add ratio peg bottom weekly'):
 			self.assertIn(line, lines)
@@ -670,9 +670,9 @@ class JobsInChat(ChatBase):
 		that are no schedule, a zone that is none, a one-off gone by, a job here already: refused, saying why."""
 		for text, why in (('nothere daily', "no report 'nothere'"), ('trades.py daily', "no report 'trades.py'"),
 				('yahoo_warm daily', "no report 'yahoo_warm'"), ('os.system daily', "no report 'os.system'"),
-				('movers bogus weekly', 'movers takes midsession|interday|premarket|close|DAYS'),
+				('movers bogus weekly', 'movers takes midsession|interday|premarket|close|PERIOD'),
 				('trades 7 daily', 'trades takes no arguments'), ('trades fortnightly', "can't read 'fortnightly'"),
-				('shorts daily at 9am Atlantis', "can't read 'atlantis'"), ('trades', 'no days or times'),
+				('shorts daily at 9am Atlantis', "can't read 'atlantis'"),
 				('message on 1 jan 2020 "late"', 'once, 1 Jan 2020 has gone by'),
 				('trades every 20 mins weekdays UTC', 'that job is here already')):
 			with self.subTest(text=text):
@@ -969,26 +969,46 @@ class JobsMenu(ChatBase):
 			['treemap', 'who', 'marketcap'], ['beta', 'price', 'buysell'], ['ratio', 'stock'], ['Cancel']])
 		self.assertEqual((data['movers'], data['Cancel']), (f'm|add|5|{self.crc()}', f'm|top|0|{self.crc()}'))
 		lines, rows, data = self.press(data['movers'])
-		self.assertEqual((lines[:3], rows), (['<b>Add movers: how often?</b>', '', '<i>† indicates default</i>'],
+		self.assertEqual((lines[:2], rows), (['<b>Add movers: which period?</b>', ''],
+			[['1d', '7d', '1w'], ['1m', '3m', '1y'], ['Back', 'Cancel']]))
+		self.assertEqual(data['Back'], f'm|add|{self.crc()}')
+		lines, rows, data = self.press(data['1w'])
+		self.assertEqual((lines[:3], rows), (['<b>Add movers 1w: how often?</b>', '', '<i>† indicates default</i>'],
 			[['one-off', 'hourly', 'daily†'], ['weekly', 'monthly', 'quarterly'], ['bi-annual', 'annual', 'every...'],
 			['Back', 'Cancel']]))
 		lines, rows, data = self.press(data['weekly'])
 		self.assertEqual(rows[:2], [['Mon', 'Tue', 'Wed', 'Thu'], ['Fri', 'Sat†', 'Sun']])
 		self.assertEqual(data['Cancel'], f'm|top|0|{self.crc()}')
 		lines, rows, data = self.press(data['Fri'])
-		self.assertEqual(lines[:2], ['<b>Add movers, weekly, Fridays: at what hour?</b>', "By Melbourne's clock"])
+		self.assertEqual(lines[:2], ['<b>Add movers 1w, weekly, Fridays: at what hour?</b>', "By Melbourne's clock"])
 		self.assertEqual((len(rows), [len(row) for row in rows], rows[1][4], rows[-1]), (5, [5] * 5, '09†',
 			['20', '21', '22', '23', 'Back']))
-		self.assertEqual(data['Back'], f'm|add|5|w|{self.crc()}')
+		self.assertEqual(data['Back'], f'm|add|5|v1w|w|{self.crc()}')
 		lines, rows, data = self.press(data['14'])
 		self.assertEqual((rows[0], rows[-1]), (['14:00†', '14:05', '14:10', '14:15'], ['Back', 'Cancel']))
 		lines, rows, data = self.press(data['14:30'])
-		self.assertEqual(newest(lines), '3. * movers · weekly, Fridays at 2:30pm')
+		self.assertEqual(newest(lines), '3. * movers 1w · weekly, Fridays at 2:30pm')
 		self.assertEqual((lines[0], rows, data['+']), ('Added', [['+', 'Edit', 'Run...', 'Upcoming']],
 			f'm|add|{self.crc()}')) # the whole list, the job added in bold, with the list's buttons
-		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1], entry('movers every friday at 2:30pm',
+		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1], entry('movers 1w every friday at 2:30pm',
 			zone='Australia/Melbourne'))
-		self.assertIn('that job is here already', self.say('.jobs add movers weekly on friday at 14:30')[0])
+		self.assertIn('that job is here already', self.say('.jobs add movers 1w weekly on friday at 14:30')[0])
+
+	def test_a_report_and_its_argument_typed_alone_open_the_buttons_for_the_rest(self):
+		"""'.jobs add performance 3m' (or a report with no argument) asks how often with Add's buttons, the argument
+		carried to the job they make; a reminder, or an argument the report refuses, is not taken."""
+		lines = self.say('.jobs add performance 3m')
+		self.assertEqual(lines[0], '<b>Add performance 3m: how often?</b>')
+		data = {button.label: button.data for row in self.replies[-1][2] for button in row}
+		lines, rows, data = self.press(data['quarterly'])
+		self.assertIn('Add performance 3m, quarterly', lines[0])
+		for label in ('Feb', '15', '09', '09:00'):
+			lines, rows, data = self.press(next(data[key] for key in data if key.startswith(label)))
+		self.assertEqual(state.load(jobs.JOBS_FILE)[CHAT]['jobs'][-1], entry('performance 3m quarterly from feb on the'
+			' 15th at 9am', zone='Australia/Melbourne'))
+		self.assertIn('which period?', self.say('.jobs add performance')[0])
+		self.assertNotIn('how often?', ' '.join(self.say('.jobs add performance nonsense')))
+		self.assertNotIn('how often?', ' '.join(self.say('.jobs add reminder')))
 
 	def test_the_month_steps_start_a_cycle(self):
 		"""Monthly asks for the day of the month; quarterly, bi-annual and annual first for the start month, the cycle
@@ -1010,14 +1030,15 @@ class JobsMenu(ChatBase):
 			with self.subTest(frequency=frequency):
 				lines, rows, data = self.press(f'm|add|{self.crc()}')
 				lines, rows, data = self.press(data['movers'])
+				lines, rows, data = self.press(data['1w'])
 				lines, rows, data = self.press(data[frequency])
-				self.assertEqual((lines[0], rows[0]), (f'<b>Add movers, {frequency}: start month?</b>', ['Jan†', 'Feb',
-					'Mar', 'Apr']))
+				self.assertEqual((lines[0], rows[0]), (f'<b>Add movers 1w, {frequency}: start month?</b>',
+					['Jan†', 'Feb', 'Mar', 'Apr']))
 				lines, rows, data = self.press(data[start])
-				self.assertEqual(lines[0], f'<b>Add movers, {said}: on which day of the month?</b>')
+				self.assertEqual(lines[0], f'<b>Add movers 1w, {said}: on which day of the month?</b>')
 				for pressed in ('15', '09†', '09:00†'):
 					lines, rows, data = self.press(data[pressed])
-				self.assertTrue(newest(lines).endswith(f'* movers · {added}'), lines)
+				self.assertTrue(newest(lines).endswith(f'* movers 1w · {added}'), lines)
 		lines, rows, data = self.press(f'm|add|5|a|2|{self.crc()}')
 		self.assertEqual((lines[0], rows[-2]), ('<b>Add movers, annual, in Feb: on which day of the month?</b>',
 			['26', '27', '28', '29']))

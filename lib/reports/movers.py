@@ -142,12 +142,12 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 		chart = render.Chart('bars', heading(''), subtitle, tuple(label(found.rows)), session=session)
 		return [service.bold(heading(f', {span}'))] + lines, chart
 	worst = [i for i in reversed(range(len(found.rows))) if i >= top][:top] # the worst, worst first, none of the best
-	payload = [service.bold(f'Top {top} performers {span}')] + lines[:top]
+	payload = [service.bold(f'Top {top} movers {span}')] + lines[:top]
 	if worst:
 		payload += ['', service.bold(f'Bottom {top}')] + [lines[i] for i in worst]
-	bars = label(found.rows[:top]) # the best, then after a gap the worst, as the caption's two lists
+	bars = label(found.rows[:top]) # the best, then after a gap the worst, the worst last
 	if worst:
-		bars += [('', None)] + label(found.rows[i] for i in worst)
+		bars += [("", None)] + label(found.rows[i] for i in reversed(worst))
 	return payload, render.Chart('bars', f"Top & bottom {top}", subtitle, tuple(bars))
 
 def nothing(mode, threshold, user, ticker, in_session):
@@ -191,14 +191,18 @@ def list_buttons(threshold=None, top=None, days=None):
 	period = buttons.period_for_days(days, None if days else buttons.DEFAULT_PERIOD['l'])
 	return [f"{threshold:g}", str(top or 0)], period
 
-ARGUMENTS = 'midsession|interday|premarket|close|DAYS' # what a scheduled run takes
+ARGUMENTS = 'midsession|interday|premarket|close|PERIOD' # what a scheduled run takes
 
 def job(argv):
 	"""A scheduled run's arguments: (label, run's keyword arguments); a bad one raises ValueError with the usage."""
 	match argv:
 		case ['midsession' | 'interday' | 'premarket' | 'close' as mode]:
 			return f'movers {mode}', {'mode': mode}
-		case [days] if days.isdigit():
-			return f'movers {days}', {'mode': 'period', 'threshold': 0, 'days': int(days), 'top': TOP}
+		case [period]:
+			try:
+				days = formats.days_from_human_days(period)
+			except ValueError:
+				raise ValueError(ARGUMENTS) from None
+			return f'movers {period}', {'mode': 'period', 'threshold': 0, 'days': days, 'top': TOP}
 		case _:
 			raise ValueError(ARGUMENTS)

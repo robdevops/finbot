@@ -312,6 +312,24 @@ def parse_add(text, zone):
 	raise wrong or unread
 
 
+def report_alone(text):
+	"""What .jobs add was given (its text after add), where that is a report and perhaps its one argument, such as a
+	period, and no schedule: (action, its argument words), for Add's buttons to ask the schedule of; None for anything
+	else (a schedule is there, or the report is none, takes more than one word, or does not take what was typed)."""
+	known, words = actions(), text.split()
+	name = next((' '.join(words[:size]).lower() for size in (2, 1) if ' '.join(words[:size]).lower() in known), None)
+	if name is None or name in SYSTEM_ACTIONS:
+		return None
+	args = words[len(name.split()):]
+	if len(args) > 1 or any(not (arg.isascii() and arg.isalnum()) for arg in args):
+		return None
+	try:
+		job_args(known[name], name, args)
+	except ValueError:
+		return None
+	return name, args
+
+
 class Scheduler:
 	"""Runs the jobs: each chat's, from JOBS_FILE and the catalog, and the system jobs. clock, sleep and spawn can be
 	replaced, which the tests do. Its lock covers what the loop, a change from chat and the runs share: the
