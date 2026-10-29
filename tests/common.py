@@ -92,6 +92,7 @@ def market_entry(ticker):
 			'currency': 'USD'}
 
 
+os.environ.pop('JOURNAL_STREAM', None) # set where the runner is a systemd service: log lines would start <N>
 log.SPLIT = False # every level goes to stderr, where the tests read the log; test_edges.LogStreams splits it
 
 
