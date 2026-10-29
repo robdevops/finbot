@@ -81,7 +81,7 @@ class Actions(unittest.TestCase):
 		for text, action, args, stored in (('movers weekly', 'movers', ['7'], {'days': ['sat'], 'at': '09:00'}),
 				('movers close weekdays at 4:30pm New York', 'movers', ['close'],
 					{'days': 'weekdays', 'at': '16:30', 'zone': 'America/New_York'}),
-				('performance quarterly', 'performance', ['90'], {'days': {'day': 1, 'months': [1, 4, 7, 10]},
+				('performance quarterly', 'performance', ['3m'], {'days': {'day': 1, 'months': [1, 4, 7, 10]},
 					'at': '09:00'}),
 				('performance tue-sat at 8am', 'performance', [], {'days': ['tue', 'wed', 'thu', 'fri', 'sat'],
 					'at': '08:00'}),
@@ -189,7 +189,7 @@ class DefaultJobs(unittest.TestCase):
 		"""Each default job is an action a chat may schedule, with arguments its parser takes, on a schedule that runs;
 		its key is its own; its name says what it reports on, never when; performance and movers over a period cover the
 		days between their runs."""
-		self.assertEqual((len(catalog.ITEMS), len({item.key for item in catalog.ITEMS})), (31, 31))
+		self.assertEqual((len(catalog.ITEMS), len({item.key for item in catalog.ITEMS})), (25, 25))
 		start = datetime.datetime(2026, 1, 1, tzinfo=when.UTC)
 		for item in catalog.ITEMS:
 			with self.subTest(item=item.key):
@@ -219,17 +219,12 @@ class DefaultJobs(unittest.TestCase):
 			'movers close HK · weekdays at 4:30pm Hong Kong (7:30pm local)',
 			'movers close UK · weekdays at 5:00pm London (3:00am local, Tue–Sat)',
 			'movers close US · weekdays at 4:30pm New York (7:30am local, Tue–Sat)',
-			'rating · Tue–Sat at 8:30am', 'milestone · Tue–Sat at 8:30am',
-			'podcasts Money Cafe · hourly at :01, weekdays 10am–9pm',
-			'podcasts Stocktake · hourly at :01, weekdays 10am–9pm',
-			'earnings · weekly, Sundays at 8:30am',
-			'shorts · weekly, Sundays at 8:30am', 'performance · weekly, Sundays at 8:30am',
-			'movers · weekly, Sundays at 8:30am', 'performance · monthly, the 2nd at 8:30am',
-			'movers · monthly, the 2nd at 8:30am', 'performance · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am',
-			'movers · quarterly, 2 Jan/Apr/Jul/Oct at 8:30am',
-			'performance · bi-annual, 2 Jan and 2 Jul at 8:30am',
-			'movers · bi-annual, 2 Jan and 2 Jul at 8:30am', 'performance · annual, 2 Jan at 8:30am',
-			'movers · annual, 2 Jan at 8:30am',
+			'rating · Tue–Sat at 9:00am', 'milestone · Tue–Sat at 9:00am',
+			'earnings · monthly, the 1st at 9:00am',
+			'shorts · weekly, Saturdays at 9:00am', 'performance · weekly, Saturdays at 9:00am',
+			'movers · weekly, Saturdays at 9:00am', 'performance · monthly, the 1st at 9:00am',
+			'movers · monthly, the 1st at 9:00am', 'performance · quarterly, 1 Jan/Apr/Jul/Oct at 9:00am',
+			'movers · quarterly, 1 Jan/Apr/Jul/Oct at 9:00am',
 			'🥳 Happy EOFY 🇬🇧 🇭🇰 🇮🇳 🇰🇷 🇳🇿 🇯🇵 🇿🇦 · annual, 31 Mar at 8:30am',
 			'💸 Realise capital gains/losses by EOFY June 30 (AU) · annual, 23 Jun at 8:30am',
 			'🥳 Happy EOFY 🇦🇺 🇧🇩 🇪🇬 🇪🇹 🇰🇪 🇳🇵 🇵🇰 · annual, 30 Jun at 8:30am',
@@ -259,7 +254,7 @@ class DefaultJobs(unittest.TestCase):
 		self.assertIsNone(matching('trades every 20 mins from mon 9am to sat 3pm Brisbane'))
 		self.assertIsNone(matching('trades every 20 mins weekdays'))
 		self.assertEqual(matching('movers close weekdays at 4:30pm New York'), 'price-close-us')
-		self.assertEqual(matching('movers every sunday at 8:30am'), 'price-weekly')
+		self.assertEqual(matching('movers every saturday at 9am'), 'price-weekly')
 
 
 class Messages(FinbotCase):
