@@ -186,7 +186,7 @@ move as either side's daylight saving changes.
   directory, caches and connections. Charts are drawn one at a time, and a slow report holds up no chat command. There
   is no cron to set up: remove any old crontab entries that ran finbot's scripts, or their reports come twice.
 * **Catch-up:** a run that was due while the bot was down (a restart, a deploy) still fires once, if it was due within
-  the last `scheduler_catchup` minutes (default 5). A restart right after a run does not repeat it. A job that is
+  the last `SCHEDULER_CATCHUP` minutes (default 5). A restart right after a run does not repeat it. A job that is
   switched off does not fire, and does not catch up when it is switched on again.
 * **Daylight saving:** a time the clocks skip runs when they reach the first minute after the gap, and a time they
   repeat runs once.

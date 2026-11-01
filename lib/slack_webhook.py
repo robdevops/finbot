@@ -1,4 +1,4 @@
-"""Slack's Request URL, its HTTP mode (slackOutgoingWebhook set): Slack posts each event, button press and slash
+"""Slack's Request URL, its HTTP mode (SLACK_OUTGOING_WEBHOOK set): Slack posts each event, button press and slash
 command to finbot's URL, signed with the app's signing secret, for the reader (slack_common.READER)."""
 import hashlib
 import hmac
@@ -14,24 +14,25 @@ SIGNATURE_AGE = 300 # seconds: Slack's limit; an older signed request may be a r
 
 
 class SlackWebhook(inbound.Webhook):
-	"""Slack posting events, button presses and slash commands to slackOutgoingWebhook (the app's Request URL for each),
+	"""Slack posting events, button presses and slash commands to SLACK_OUTGOING_WEBHOOK (the app's Request URL for
+	each),
 	each request signed with the app's signing secret, and carrying its verification token."""
-	URL = 'slackOutgoingWebhook'
+	URL = 'SLACK_OUTGOING_WEBHOOK'
 	SECRET_FIELDS = ('token',) # the verification token
-	MISSING = 'slackSigningSecret (or slackOutgoingToken)'
+	MISSING = 'SLACK_SIGNING_SECRET (or SLACK_OUTGOING_TOKEN)'
 
 	def secured(self):
-		"""Whether slackSigningSecret or slackOutgoingToken is set."""
-		return bool(config.env.slackSigningSecret or config.env.slackOutgoingToken)
+		"""Whether SLACK_SIGNING_SECRET or SLACK_OUTGOING_TOKEN is set."""
+		return bool(config.env.SLACK_SIGNING_SECRET or config.env.SLACK_OUTGOING_TOKEN)
 
 	def refuse(self, environ, body, update):
-		"""With slackSigningSecret, the request must carry Slack's signature of its body, made in the last five minutes;
-		without it, the body must carry slackOutgoingToken (the older way, which Slack has deprecated)."""
-		if config.env.slackSigningSecret:
-			return self.signature_problem(environ, body, config.env.slackSigningSecret)
+		"""With SLACK_SIGNING_SECRET, the request must carry Slack's signature of its body, made in the last five
+		minutes; without it, the body must carry SLACK_OUTGOING_TOKEN (the older way, which Slack has deprecated)."""
+		if config.env.SLACK_SIGNING_SECRET:
+			return self.signature_problem(environ, body, config.env.SLACK_SIGNING_SECRET)
 		if 'token' not in update:
 			return "Slack authorisation field not present"
-		if not inbound.same_secret(str(update['token']), config.env.slackOutgoingToken):
+		if not inbound.same_secret(str(update['token']), config.env.SLACK_OUTGOING_TOKEN):
 			return "Slack auth incorrect"
 		return None
 

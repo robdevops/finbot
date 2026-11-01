@@ -22,7 +22,7 @@ class TelegramPolling(FinbotCase):
 	def setUp(self):
 		"""Telegram in pull mode: a bot token and no webhook URL; telegram_common.call answers from self.answers."""
 		super().setUp()
-		self.env(telegramBotToken='123:abc', telegramOutgoingWebhook='')
+		self.env(TELEGRAM_BOT_TOKEN='123:abc', TELEGRAM_OUTGOING_WEBHOOK='')
 		self.calls, self.answers = [], []
 		def call(method, **kwargs):
 			"""Note the call, and give the next answer (an exception is raised)."""
@@ -95,7 +95,7 @@ class TelegramPolling(FinbotCase):
 		with contextlib.redirect_stderr(err), self.assertRaises(Stop):
 			poll.run(bot.take)
 		self.assertEqual(slept, [0, 5, 0])
-		self.assertIn('telegram: long polling for updates (no telegramOutgoingWebhook)', err.getvalue())
+		self.assertIn('telegram: long polling for updates (no TELEGRAM_OUTGOING_WEBHOOK)', err.getvalue())
 
 	def test_a_round_that_fails_unforeseen_is_waited_out_and_tried_again(self):
 		"""A round that raises (a bug, say) does not end the listener: it is logged without the token and tried again
@@ -127,25 +127,25 @@ class TelegramPolling(FinbotCase):
 		self.assertIn("telegram: a round failed, trying again in", err.getvalue())
 
 	def test_a_listener_for_each_network_without_a_webhook(self):
-		"""Telegram is polled with its bot token and no telegramOutgoingWebhook; with the URL, or without a token, it
+		"""Telegram is polled with its bot token and no TELEGRAM_OUTGOING_WEBHOOK; with the URL, or without a token, it
 		is not."""
 		self.assertEqual([type(listener) for listener in bot.listeners()], [telegram_longpolling.TelegramPoll])
-		self.env(telegramOutgoingWebhook='https://example.com/telegram')
+		self.env(TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram')
 		self.assertEqual(bot.listeners(), [])
-		self.env(telegramBotToken='', telegramOutgoingWebhook='')
+		self.env(TELEGRAM_BOT_TOKEN='', TELEGRAM_OUTGOING_WEBHOOK='')
 		self.assertEqual(bot.listeners(), [])
 
 	def test_the_networks_line_names_each_enabled_network_and_how_it_reaches_finbot(self):
 		"""Startup logs the enabled networks, each pushed (its webhook URL is set) or pulled (finbot fetches)."""
-		self.env(telegramBotToken='1:a', telegramOutgoingWebhook='', slackBotToken='xoxb-1', slackAppToken='xapp-1',
-			slackOutgoingWebhook='', discordBotToken='d', discordOutgoingWebhook='https://example.com/discord',
-			discordPublicKey='ab' * 32)
+		self.env(TELEGRAM_BOT_TOKEN='1:a', TELEGRAM_OUTGOING_WEBHOOK='', SLACK_BOT_TOKEN='xoxb-1',
+			SLACK_APP_TOKEN='xapp-1', SLACK_OUTGOING_WEBHOOK='', DISCORD_BOT_TOKEN='d',
+			DISCORD_OUTGOING_WEBHOOK='https://example.com/discord', DISCORD_PUBLIC_KEY='ab' * 32)
 		self.assertEqual(bot.networks_line(), 'networks: discord (push), slack (pull), telegram (pull)')
-		self.env(discordPublicKey='') # no key to check an interaction by: Discord is turned off, not served
+		self.env(DISCORD_PUBLIC_KEY='') # no key to check an interaction by: Discord is turned off, not served
 		self.assertEqual(bot.networks_line(), 'networks: slack (pull), telegram (pull)')
-		self.env(slackAppToken='', discordBotToken='', telegramOutgoingWebhook='https://example.com/t')
+		self.env(SLACK_APP_TOKEN='', DISCORD_BOT_TOKEN='', TELEGRAM_OUTGOING_WEBHOOK='https://example.com/t')
 		self.assertEqual(bot.networks_line(), 'networks: telegram (push)') # Slack has no way to hear; Discord is off
-		self.env(telegramBotToken='')
+		self.env(TELEGRAM_BOT_TOKEN='')
 		self.assertEqual(bot.networks_line(), 'networks: none')
 
 	def test_a_press_polled_for_is_the_press_the_webhook_gets(self):
@@ -156,9 +156,9 @@ class TelegramPolling(FinbotCase):
 		self.patch(telegram_common, 'answerCallbackQuery', lambda cid, text=None, alert=False: toasts.append(text))
 		body = json.dumps(callback_query(80)).encode()
 		with contextlib.redirect_stderr(io.StringIO()):
-			self.env(telegramOutgoingWebhook='https://example.com/telegram')
+			self.env(TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram')
 			bot.main(wsgi_environ('/telegram', body, HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok'), lambda *a: None)
-			self.env(telegramOutgoingWebhook='')
+			self.env(TELEGRAM_OUTGOING_WEBHOOK='')
 			update = callback_query(81)
 			update['callback_query']['id'] = 'q80' # the same press, as getUpdates gives it
 			self.answers.append([update])
@@ -210,7 +210,7 @@ class SlackSocketMode(FinbotCase):
 	def setUp(self):
 		"""Slack in pull mode: the bot and app-level tokens, no webhook URL; apps.connections.open answers a URL."""
 		super().setUp()
-		self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
+		self.env(SLACK_BOT_TOKEN='xoxb-1', SLACK_APP_TOKEN='xapp-1', SLACK_OUTGOING_WEBHOOK='')
 		self.log = []
 		self.patch(slack_common, 'call', lambda method, as_app=False, **data:
 			self.log.append((method, as_app)) or {'ok': True, 'url': 'wss://example.com/link'})
@@ -261,17 +261,18 @@ class SlackSocketMode(FinbotCase):
 			self.assertEqual(listener.poll(lambda *a: None), 5) # the socket failed, after a hello
 
 	def test_a_press_over_the_socket_is_the_press_the_webhook_gets(self):
-		"""The same button press, posted to slackOutgoingWebhook (http mode) or sent over the socket, reaches the worker
-		as the same Press; an event already taken over one is not run again over the other (its event_id)."""
+		"""The same button press, posted to SLACK_OUTGOING_WEBHOOK (http mode) or sent over the socket,
+		reaches the worker as the same Press; an event already taken over one is not run again over
+		the other (its event_id)."""
 		presses, messages = [], []
 		self.patch(worker, 'process_callback', presses.append)
 		self.patch(worker, 'process_request', messages.append)
-		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok')
+		self.env(SLACK_OUTGOING_WEBHOOK='https://example.com/slack', SLACK_OUTGOING_TOKEN='stok')
 		with contextlib.redirect_stderr(io.StringIO()):
 			body = urlencode({'payload': json.dumps(SLACK_PRESS)}).encode()
 			bot.main(wsgi_environ('/slack', body), lambda *a: None)
 			bot.main(wsgi_environ('/slack', json.dumps({**SLACK_EVENT, 'token': 'stok'}).encode()), lambda *a: None)
-			self.env(slackOutgoingWebhook='')
+			self.env(SLACK_OUTGOING_WEBHOOK='')
 			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'interactive', 'payload': SLACK_PRESS},
 				{'envelope_id': 'e2', 'type': 'events_api', 'payload': SLACK_EVENT},
 				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
@@ -281,16 +282,16 @@ class SlackSocketMode(FinbotCase):
 		self.assertEqual([m.text for m in messages], ['.price'])
 
 	def test_a_slash_command_over_the_socket_is_the_message_the_webhook_gets(self):
-		"""The same slash command, posted to slackOutgoingWebhook as a form (http mode) or sent over the socket (its
+		"""The same slash command, posted to SLACK_OUTGOING_WEBHOOK as a form (http mode) or sent over the socket (its
 		envelope acked first), reaches the worker as the same Message."""
 		messages = []
 		self.patch(worker, 'process_request', messages.append)
 		slash = {'token': 'stok', 'channel_id': 'C1', 'user_id': 'U1', 'user_name': 'rob', 'command': '/forwardpe',
 			'text': 'top', 'trigger_id': 't9'}
-		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok')
+		self.env(SLACK_OUTGOING_WEBHOOK='https://example.com/slack', SLACK_OUTGOING_TOKEN='stok')
 		with contextlib.redirect_stderr(io.StringIO()):
 			bot.main(wsgi_environ('/slack', urlencode(slash).encode()), lambda *a: None)
-			self.env(slackOutgoingWebhook='')
+			self.env(SLACK_OUTGOING_WEBHOOK='')
 			self.socket({'type': 'hello'}, {'envelope_id': 'e1', 'type': 'slash_commands', 'payload': slash},
 				{'type': 'disconnect', 'reason': 'warning'}).poll(bot.take)
 		self.join_workers()
@@ -336,16 +337,16 @@ class SlackSocketMode(FinbotCase):
 		self.assertEqual(ws.closed, 4000)
 
 	def test_slack_is_listened_to_with_both_tokens_and_no_webhook(self):
-		"""The socket is opened with the bot and app-level tokens and no slackOutgoingWebhook; with the URL (http mode),
-		or without either token, it is not."""
-		self.env(telegramBotToken='')
+		"""The socket is opened with the bot and app-level tokens and no SLACK_OUTGOING_WEBHOOK; with the URL (http
+		mode), or without either token, it is not."""
+		self.env(TELEGRAM_BOT_TOKEN='')
 		self.assertEqual([type(listener) for listener in bot.listeners()], [slack_websocket.SlackSocket])
-		for changes in ({'slackOutgoingWebhook': 'https://example.com/slack'}, {'slackAppToken': ''},
-				{'slackBotToken': ''}):
+		for changes in ({'SLACK_OUTGOING_WEBHOOK': 'https://example.com/slack'}, {'SLACK_APP_TOKEN': ''},
+				{'SLACK_BOT_TOKEN': ''}):
 			with self.subTest(changes=changes):
 				self.env(**changes)
 				self.assertEqual(bot.listeners(), [])
-				self.env(slackBotToken='xoxb-1', slackAppToken='xapp-1', slackOutgoingWebhook='')
+				self.env(SLACK_BOT_TOKEN='xoxb-1', SLACK_APP_TOKEN='xapp-1', SLACK_OUTGOING_WEBHOOK='')
 
 
 class Backoff(unittest.TestCase):

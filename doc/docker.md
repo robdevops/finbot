@@ -8,7 +8,7 @@ The configuration lives on the host, outside the image (the startup env in `/etc
 
 1. `git clone https://github.com/robdevops/finbot /opt/finbot`
 2. `sudo /opt/finbot/util/docker_setup.sh`
-3. Set your chatbot's API key in `/etc/finbot.env` (`telegramBotToken` for Telegram; see the
+3. Set your chatbot's API key in `/etc/finbot.env` (`TELEGRAM_BOT_TOKEN` for Telegram; see the
    [Telegram](telegram.md), [Slack](slack.md) and [Discord](discord.md) guides).
 4. `cd /opt/finbot && sudo docker compose up -d --build`
 5. `sudo docker compose logs -f`

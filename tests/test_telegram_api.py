@@ -11,12 +11,12 @@ class TelegramWebhook(FinbotCase):
 		"""A Telegram bot with an outgoing webhook configured."""
 		super().setUp()
 		self.env(telegram_api='https://api.telegram.org/botX/')
-		self.env(telegramOutgoingWebhook='https://example.com/telegram')
+		self.env(TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram')
 
 
 	def test_start_sets_the_webhook_again_or_deletes_it_and_names_the_bot(self):
 		"""start() deletes the webhook, keeping the updates not delivered yet, and sets it again with
-		telegramOutgoingWebhook (http mode), or leaves it unset for getUpdates (pull mode); it notes the bot's @name
+		TELEGRAM_OUTGOING_WEBHOOK (http mode), or leaves it unset for getUpdates (pull mode); it notes the bot's @name
 		and makes the command menu. The log never shows the URL, nor a request's query string (which a failed
 		request's error would print): its path is a secret."""
 		calls, menus = [], []
@@ -32,8 +32,8 @@ class TelegramWebhook(FinbotCase):
 		kept = ('deleteWebhook', {'drop_pending_updates': False})
 		for hook, expected in (('https://example.com/telegram', [kept, ('setWebhook', 'https://example.com/telegram'),
 				('getMe', None)]), ('', [kept, ('getMe', None)])):
-			with self.subTest(telegramOutgoingWebhook=hook):
-				self.env(telegramOutgoingWebhook=hook)
+			with self.subTest(TELEGRAM_OUTGOING_WEBHOOK=hook):
+				self.env(TELEGRAM_OUTGOING_WEBHOOK=hook)
 				calls.clear()
 				err = io.StringIO()
 				with contextlib.redirect_stderr(err):
@@ -124,8 +124,8 @@ class TelegramWebhook(FinbotCase):
 				'print("quiet")')
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
-				env={**os.environ, 'DATA_DIR': data, 'telegramBotToken': '123:abc',
-					'telegramOutgoingWebhook': 'https://example.com/telegram'})
+				env={**os.environ, 'DATA_DIR': data, 'TELEGRAM_BOT_TOKEN': '123:abc',
+					'TELEGRAM_OUTGOING_WEBHOOK': 'https://example.com/telegram'})
 		self.assertEqual(out.stdout.split()[-1:], ['quiet'], out.stderr)
 
 	def test_the_command_menu_is_set_only_when_it_differs(self):
@@ -160,9 +160,9 @@ class TelegramWebhook(FinbotCase):
 		with tempfile.TemporaryDirectory() as data:
 			env = {k: v for k, v in bare_environment().items() if 'proxy' not in k.lower()}
 			no_jobs(data)
-			env.update(DATA_DIR=data, port='0', telegramBotToken='123456:SECRET-token',
-				telegramSecretToken='tok',
-					   telegramOutgoingWebhook='https://example.com/telegram',
+			env.update(DATA_DIR=data, PORT='0', TELEGRAM_BOT_TOKEN='123456:SECRET-token',
+				TELEGRAM_SECRET_TOKEN='tok',
+					   TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram',
 					   # unreachable, so the registration fails at once and offline
 					   HTTPS_PROXY='http://127.0.0.1:9', https_proxy='http://127.0.0.1:9')
 			out = subprocess.run([sys.executable, 'bot.py'], cwd=ROOT, env=env, capture_output=True, text=True,

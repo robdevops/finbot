@@ -46,7 +46,7 @@ REFUSED_PHOTO = re.compile(r'file identifier|file reference|file_id|MEDIA_EMPTY'
 def photo_file(photo):
 	"""The cache file that holds the file id of a chart (its PNG bytes) uploaded to Telegram: by the chart and the bot,
 	whose own uploads alone it shows by id."""
-	return f"finbot_telegram_photo_{hashlib.sha1(config.env.telegramBotToken.encode() + photo).hexdigest()[:20]}.json"
+	return f"finbot_telegram_photo_{hashlib.sha1(config.env.TELEGRAM_BOT_TOKEN.encode() + photo).hexdigest()[:20]}.json"
 
 
 def view_file(view):
@@ -87,17 +87,17 @@ def unchanged(error):
 
 def start(commands):
 	"""Called once by bot.py as it starts, never on import: the webhook deleted, keeping the updates not delivered yet,
-	and in http mode set again (telegramOutgoingWebhook, signed with telegramSecretToken), which wakes a stale
+	and in http mode set again (TELEGRAM_OUTGOING_WEBHOOK, signed with TELEGRAM_SECRET_TOKEN), which wakes a stale
 	connection on Telegram's side; in pull mode getUpdates takes them (telegram_longpolling). Then the bot's
 	@username (getMe: a command in a group may name the bot, /price@finbot) and the command menu (set_commands).
 	Raises RuntimeError, or a requests error, when the webhook or the bot's name cannot be had."""
 	log.info("telegram: deleting the webhook")
 	call('deleteWebhook', json={'drop_pending_updates': False})
-	if config.env.telegramOutgoingWebhook: # in the body, never the query string, which a failed request's error (and
+	if config.env.TELEGRAM_OUTGOING_WEBHOOK: # in the body, never the query string, which a failed request's error (and
 		# so the log) would show: the URL's path is a secret
-		log.info("telegram: setting the webhook (telegramOutgoingWebhook)")
-		call('setWebhook', json={'url': config.env.telegramOutgoingWebhook, 'allowed_updates': ALLOWED_UPDATES,
-			'secret_token': config.env.telegramSecretToken})
+		log.info("telegram: setting the webhook (TELEGRAM_OUTGOING_WEBHOOK)")
+		call('setWebhook', json={'url': config.env.TELEGRAM_OUTGOING_WEBHOOK, 'allowed_updates': ALLOWED_UPDATES,
+			'secret_token': config.env.TELEGRAM_SECRET_TOKEN})
 	READER.bot_name = '@' + call('getMe')['username']
 	set_commands(commands)
 

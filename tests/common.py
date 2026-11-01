@@ -10,7 +10,7 @@ import requests
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
-os.environ.update(telegramOutgoingWebhook='https://example.com/telegram', telegramSecretToken='tok')
+os.environ.update(TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram', TELEGRAM_SECRET_TOKEN='tok')
 
 import bot
 from lib import answer, buttons, cache, charts, config, delivery, dialects, formats, inbound, jobs, links, markets, net
@@ -133,8 +133,8 @@ class FinbotCase(unittest.TestCase):
 		self.patch(requests.Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
-		self.env(data_dir=tmp.name, cache_dir=tmp.name, telegramBotToken='X',
-			telegram_api='https://api.telegram.org/botX/', sharesight_client_id='test') # its answers are the fixtures
+		self.env(data_dir=tmp.name, cache_dir=tmp.name, TELEGRAM_BOT_TOKEN='X',
+			telegram_api='https://api.telegram.org/botX/', SHARESIGHT_CLIENT_ID='test') # its answers are the fixtures
 		self.patch(bot, '_updates_seen', inbound.Recent()) # each test starts with no update taken
 		self.patch(bot, '_said', inbound.Recent()) # nor any message
 		self.patch(bot, 'doubled', lambda message: False) # a test may send the same message twice on purpose

@@ -34,8 +34,8 @@ class WsgiRejections(FinbotCase):
 	def test_an_empty_secret_proves_nothing(self):
 		"""With no secret configured, a network is turned away on all three (its URL is served by nobody: 404), even to
 		a request carrying an empty secret."""
-		self.env(telegramSecretToken='', slackSigningSecret='', slackOutgoingWebhook='https://example.com/slack',
-			slackOutgoingToken='', discordOutgoingWebhook='https://example.com/discord', discordPublicKey='')
+		self.env(TELEGRAM_SECRET_TOKEN='', SLACK_SIGNING_SECRET='', SLACK_OUTGOING_WEBHOOK='https://example.com/slack',
+			SLACK_OUTGOING_TOKEN='', DISCORD_OUTGOING_WEBHOOK='https://example.com/discord', DISCORD_PUBLIC_KEY='')
 		message = {'message': {'message_id': 1, 'chat': {'id': 5}, 'from': {'first_name': 'A'}, 'text': '.help'}}
 		empty = {'HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN': ''}
 		self.assertEqual(self.request(body=message, headers=empty)[1], '404 Not Found')
@@ -49,17 +49,18 @@ class WsgiRejections(FinbotCase):
 	def test_a_network_without_its_secret_is_reported_and_not_started(self):
 		"""A webhook URL with no token, signing secret or public key is named at start as turned off, and its network
 		is not registered; with the secret set it is served."""
-		self.env(telegramOutgoingWebhook='https://example.com/telegram', telegramSecretToken='')
+		self.env(TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram', TELEGRAM_SECRET_TOKEN='')
 		self.assertIn('telegram', [hook.service for hook in bot.unsecured()])
 		self.assertEqual(bot.WEBHOOKS[0].path(), '')
-		self.env(telegramSecretToken='tok')
+		self.env(TELEGRAM_SECRET_TOKEN='tok')
 		self.assertNotIn('telegram', [hook.service for hook in bot.unsecured()])
 		self.assertEqual(bot.WEBHOOKS[0].path(), '/telegram')
 
 	def test_the_secrets_of_a_request_stay_out_of_the_log(self):
 		"""The headers logged (with the print_headers setting, or of a request refused unread) hide each webhook's
 		secret ones (Telegram's secret token), and a refused update its secret fields (Slack's verification token)."""
-		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackSigningSecret='')
+		self.env(SLACK_OUTGOING_WEBHOOK='https://example.com/slack', SLACK_OUTGOING_TOKEN='stok',
+			SLACK_SIGNING_SECRET='')
 		self.settings(print_headers=True)
 		with contextlib.redirect_stderr(io.StringIO()) as log:
 			bot.main(wsgi_environ('/telegram', b'{}', HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN='tok-x'), lambda *a: None)
@@ -99,9 +100,9 @@ class WsgiRejections(FinbotCase):
 
 	def test_strangers_cannot_post_into_the_chats(self):
 		"""Strangers (wrong paths, no or wrong secrets, malformed bodies) are refused, and nothing reaches the chats."""
-		self.env(slackOutgoingWebhook='https://example.com/slack')
+		self.env(SLACK_OUTGOING_WEBHOOK='https://example.com/slack')
 
-		self.env(slackOutgoingToken='stok')
+		self.env(SLACK_OUTGOING_TOKEN='stok')
 
 		for path, body, headers, status in (('/', b'', {}, '404 Not Found'),
 			('/wp-login.php', b'log=x&pwd=y', {}, '404 Not Found'),
@@ -131,7 +132,7 @@ class WsgiRejections(FinbotCase):
 
 	def test_a_reported_failure_names_the_network_not_its_secret_path(self):
 		"""The error line of a failed update names the network, not the webhook's path, which is a secret."""
-		self.env(telegramOutgoingWebhook='https://example.com/hook-s3cret')
+		self.env(TELEGRAM_OUTGOING_WEBHOOK='https://example.com/hook-s3cret')
 		broken = {'message': {'message_id': 1, 'from': {'first_name': 'A'}, 'text': '.help'}} # no chat
 		self.assertEqual(self.request('/hook-s3cret', broken, self.SECRET)[1], '200 OK')
 		self.assertEqual(self.errors, ["⚠️ telegram: KeyError: 'chat'"])
@@ -454,7 +455,7 @@ class AdminOnly(FinbotCase):
 		"""A press refused (here of a button of .jobs, by someone else) is told to the presser alone, and not run: an
 		alert on Telegram (above); on Slack a message only the presser sees (chat.postEphemeral), once the press is
 		acknowledged; on Discord the interaction's answer is such a message, in either mode."""
-		self.env(slackBotToken='xoxb-1', discordBotToken='x')
+		self.env(SLACK_BOT_TOKEN='xoxb-1', DISCORD_BOT_TOKEN='x')
 		for kind in (slack_common.SlackBot, discord_common.DiscordBot):
 			self.patch(kind, 'is_administrator', lambda chat, who: False)
 		posts = []
@@ -481,9 +482,9 @@ class SlackEvents(FinbotCase):
 	def setUp(self):
 		"""Slack commands configured, and the worker replaced by a list of what it would have run."""
 		super().setUp()
-		self.env(slackOutgoingWebhook='https://example.com/slack')
+		self.env(SLACK_OUTGOING_WEBHOOK='https://example.com/slack')
 
-		self.env(slackOutgoingToken='stok')
+		self.env(SLACK_OUTGOING_TOKEN='stok')
 
 		self.requests = []
 		self.patch(worker, 'process_request', self.requests.append)
@@ -568,13 +569,14 @@ class SlackEvents(FinbotCase):
 
 
 class SlackSigning(FinbotCase):
-	"""With slackSigningSecret, a Slack request must carry Slack's signature of its body, made in the last five
+	"""With SLACK_SIGNING_SECRET, a Slack request must carry Slack's signature of its body, made in the last five
 	minutes; the verification token is then neither needed nor enough."""
 
 	def setUp(self):
 		"""Slack commands with a signing secret, and the worker replaced by a list of what it would have run."""
 		super().setUp()
-		self.env(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok', slackSigningSecret='sss')
+		self.env(SLACK_OUTGOING_WEBHOOK='https://example.com/slack', SLACK_OUTGOING_TOKEN='stok',
+			SLACK_SIGNING_SECRET='sss')
 		self.requests = []
 		self.patch(worker, 'process_request', self.requests.append)
 
@@ -631,12 +633,12 @@ SLASH = {'token': 'stok', 'team_id': 'T1', 'channel_id': 'C1', 'channel_name': '
 
 
 class SlackSlashCommands(FinbotCase):
-	"""A Slack slash command posted to slackOutgoingWebhook as a form, signed as an event is."""
+	"""A Slack slash command posted to SLACK_OUTGOING_WEBHOOK as a form, signed as an event is."""
 
 	def setUp(self):
 		"""Slack in HTTP mode with a signing secret, and the worker replaced by a list of what it would have run."""
 		super().setUp()
-		self.env(slackOutgoingWebhook='https://example.com/slack', slackSigningSecret='sss')
+		self.env(SLACK_OUTGOING_WEBHOOK='https://example.com/slack', SLACK_SIGNING_SECRET='sss')
 		self.requests = []
 		self.patch(worker, 'process_request', self.requests.append)
 

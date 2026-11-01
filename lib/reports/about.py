@@ -496,7 +496,7 @@ def prepare_help(service, botName, sections):
 	@name as another way to start a command. botName is the bot's @name. On Discord the lines are slash commands, and
 	the other ways, which are messages, work only over the gateway."""
 	if service == 'discord':
-		example = None if config.env.discordOutgoingWebhook else f'.price, or <{botName}> price'
+		example = None if config.env.DISCORD_OUTGOING_WEBHOOK else f'.price, or <{botName}> price'
 	else:
 		example = '<' + botName + '> trades' if service == 'slack' else botName + ' price'
 	return formats.sections(*([service.bold(heading + ":")] + lines for heading, lines in sections),

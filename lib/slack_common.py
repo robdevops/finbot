@@ -28,7 +28,7 @@ def call(method, as_app=False, logged=True, **data):
 	"""POST a Slack Web API method (form-encoded) as the bot, or with the app-level token (as_app, for Socket Mode's
 	apps.connections.open), and return the answer, a rate limit waited out once (net.patiently); an error raises
 	RuntimeError. logged: as net logs the request."""
-	key = 'slackAppToken' if as_app else 'slackBotToken'
+	key = 'SLACK_APP_TOKEN' if as_app else 'SLACK_BOT_TOKEN'
 	token = getattr(config.env, key)
 	if not token:
 		raise RuntimeError(f"Slack {method}: needs {key} in finbot.env")
@@ -120,7 +120,7 @@ class Slack(inbound.Network):
 
 
 class SlackBot(transports.Transport):
-	"""A Slack channel, as the bot: chat.postMessage and the file upload, with slackBotToken."""
+	"""A Slack channel, as the bot: chat.postMessage and the file upload, with SLACK_BOT_TOKEN."""
 	name = 'slack'
 	dialect = dialects.SLACK
 	WORKING = 'hourglass_flowing_sand' # ⏳: Slack has no typing notice for bots, so a reaction on the message stands in

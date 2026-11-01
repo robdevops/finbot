@@ -676,7 +676,7 @@ class ScheduledReports(FinbotCase):
 		self.patch(transports.Transport, 'text', lambda dest, lines, markup=None:
 			told.append((dest.key, ' '.join(lines))) or [])
 		chats = ('telegram:5', 'slack:C9')
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 		for chat in chats * 2:
 			self.run_job(trades, chat)
 		self.assertEqual([key for key, text in told if 'T1' in text], ['telegram:5', 'slack:C9'])
@@ -758,7 +758,7 @@ class ScheduledReports(FinbotCase):
 	def test_scheduled_reports_reach_each_jobs_chat_with_its_own_token(self):
 		"""Scheduled reports reach a Telegram and a Slack job's chat, each with its own bot's credentials: Slack's
 		request carries the Slack token and channel, and Telegram's chat id goes only to Telegram."""
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
@@ -859,11 +859,11 @@ class PeriodButtons(FinbotCase):
 
 	def test_telegram_charts_have_buttons_in_both_modes(self):
 		"""A Telegram chart, a scheduled one included, has its period buttons whether Telegram posts their presses to
-		telegramOutgoingWebhook (http mode) or finbot fetches them (pull mode)."""
+		TELEGRAM_OUTGOING_WEBHOOK (http mode) or finbot fetches them (pull mode)."""
 		label, kwargs = movers.job(['7']) # as scheduled: price.py 7
 		for hook in ('https://example.com/telegram', ''):
-			with self.subTest(telegramOutgoingWebhook=hook):
-				self.env(telegramOutgoingWebhook=hook)
+			with self.subTest(TELEGRAM_OUTGOING_WEBHOOK=hook):
+				self.env(TELEGRAM_OUTGOING_WEBHOOK=hook)
 				self.markups.clear()
 				movers.run(scheduled(), **kwargs)
 				self.assertTrue(self.markups and self.markups[0])
@@ -1068,7 +1068,7 @@ class WithoutSharesight(FinbotCase):
 	def setUp(self):
 		"""No Sharesight keys in finbot.env."""
 		super().setUp()
-		self.env(sharesight_client_id='')
+		self.env(SHARESIGHT_CLIENT_ID='')
 		self.patch(sharesight, '_portfolios', lambda seconds=None: self.fail('Sharesight was asked'))
 
 	def test_the_watchlist_alone_and_never_a_request(self):

@@ -336,9 +336,9 @@ class Scheduler:
 	jobs, their bases and next runs, the record of runs and what is running."""
 
 	def __init__(self, catchup=None, clock=None, sleep=None, spawn=None):
-		"""catchup is how late, in minutes, a missed run may still start (the scheduler_catchup setting when None);
+		"""catchup is how late, in minutes, a missed run may still start (the SCHEDULER_CATCHUP setting when None);
 		clock, sleep and spawn stand in for the real ones in tests."""
-		self.catchup = datetime.timedelta(minutes=config.env.scheduler_catchup if catchup is None else catchup)
+		self.catchup = datetime.timedelta(minutes=config.env.SCHEDULER_CATCHUP if catchup is None else catchup)
 		self.clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc))
 		self.sleep = sleep or time.sleep
 		self.spawn = spawn or start_thread

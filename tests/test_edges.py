@@ -336,8 +336,8 @@ class SecretsStayOutOfLogs(FinbotCase):
 		self.patch(net, 'post', refuse)
 		self.patch(net, 'request', lambda method, url, **kwargs: refuse(url, **kwargs))
 		token = 'MTAwMDAwMDAwMDAwMDAwMDAwMDA.SECRET.' + 'a' * 38 # a Discord bot token's shape
-		self.env(slackBotToken='xoxb-SECRET', telegram_api=self.SECRET_URL.split('sendMessage')[0],
-			discordBotToken=token)
+		self.env(SLACK_BOT_TOKEN='xoxb-SECRET', telegram_api=self.SECRET_URL.split('sendMessage')[0],
+			DISCORD_BOT_TOKEN=token)
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		log = self.stderr_of(lambda: telegram_common.TelegramBot('1').text(['hi']))
 		log += self.stderr_of(lambda: slack_common.SlackBot('C1').text(['hi']))
@@ -637,7 +637,7 @@ class OptionalLibraries(unittest.TestCase):
 		for name in OPTIONAL:
 			(stubs / f'{name}.py').write_text('raise ImportError("blocked by the test")\n')
 		env = bare_environment()
-		env.update(DATA_DIR=data, port='0', PYTHONPATH=str(stubs))
+		env.update(DATA_DIR=data, PORT='0', PYTHONPATH=str(stubs))
 		no_jobs(data)
 		return env
 
@@ -678,7 +678,7 @@ class StartupSignals(unittest.TestCase):
 		with tempfile.TemporaryDirectory() as data:
 			no_jobs(data)
 			env = bare_environment()
-			env.update(DATA_DIR=data, port='0')
+			env.update(DATA_DIR=data, PORT='0')
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stdout=subprocess.PIPE,
 				stderr=subprocess.STDOUT, text=True)
 			self.addCleanup(proc.wait)
@@ -716,7 +716,7 @@ class StartupSignals(unittest.TestCase):
 			Path(data, 'settings.conf').write_text('cache=False\n') # the warm jobs a flush starts fetch nothing
 			no_jobs(data)
 			env = bare_environment()
-			env.update(DATA_DIR=data, port='0')
+			env.update(DATA_DIR=data, PORT='0')
 			proc = subprocess.Popen([sys.executable, '-u', 'bot.py'], cwd=ROOT, env=env, stdout=subprocess.PIPE,
 				stderr=subprocess.STDOUT, text=True)
 			self.addCleanup(proc.wait)

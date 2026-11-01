@@ -11,8 +11,8 @@ Telegram:
 |---|---|---|
 | How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
 | Listens on the internet | No: finbot only makes outgoing requests | Yes, behind your HTTPS server: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
-| Security | Nothing arrives unasked: finbot's own requests carry the bot token (`telegramBotToken`) | The secret token (`telegramSecretToken`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
-| `finbot.env` keys | `telegramBotToken` | `telegramBotToken`, `telegramOutgoingWebhook` and `telegramSecretToken` |
+| Security | Nothing arrives unasked: finbot's own requests carry the bot token (`TELEGRAM_BOT_TOKEN`) | The secret token (`TELEGRAM_SECRET_TOKEN`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
+| `finbot.env` keys | `TELEGRAM_BOT_TOKEN` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OUTGOING_WEBHOOK` and `TELEGRAM_SECRET_TOKEN` |
 
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/movers`,
 `/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
@@ -33,14 +33,14 @@ As finbot starts, it sets the bot's command menu, which Telegram shows when `/` 
 left out of the menu (as on Slack and Discord), and work when typed, as every name of a command does. In a group, `/price@finbot_bot` is the same
 as `/price`.
 
-`telegramOutgoingWebhook` chooses the mode: set, push mode; empty, pull mode. A restart switches. As finbot starts in
+`TELEGRAM_OUTGOING_WEBHOOK` chooses the mode: set, push mode; empty, pull mode. A restart switches. As finbot starts in
 pull mode it deletes the webhook, and in push mode it sets it; the updates sent meanwhile are kept by Telegram and
 arrive after the switch.
 
 ## Pull mode
 
 1. Create the bot: message [@BotFather](https://telegram.me/BotFather), send `/newbot` and answer its questions. It
-   replies with the bot's token: put it in `finbot.env` as `telegramBotToken`.
+   replies with the bot's token: put it in `finbot.env` as `TELEGRAM_BOT_TOKEN`.
 2. Add the bot to the groups or channels it should work in, or message it directly. In a channel, make it an
    administrator, so that it can post.
 3. Optionally, for commands as plain messages (`.price`) in a group: let the bot read the chat, by making it an
@@ -53,13 +53,13 @@ arrive after the switch.
    Each chat has the default scheduled jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
-telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
+TELEGRAM_BOT_TOKEN=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 ```
 
 ## Push mode
 
 Telegram delivers the messages in your chats, and each button press, to finbot over HTTPS. finbot listens on
-`http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a domain name
+`http://127.0.0.1:5000` (`IP` and `PORT` in `finbot.env`), so it needs a web server in front of it, on a domain name
 with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 
 1. Set up the bot as for [pull mode](#pull-mode), above.
@@ -82,19 +82,19 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
    	}
    }
    ```
-3. In `finbot.env`, set `telegramOutgoingWebhook` to the URL Telegram should post to, and `telegramSecretToken` to a
+3. In `finbot.env`, set `TELEGRAM_OUTGOING_WEBHOOK` to the URL Telegram should post to, and `TELEGRAM_SECRET_TOKEN` to a
    password of your choosing: 1 to 256 characters, of letters, digits, `_` and `-`. Telegram sends the password with
-   every update, and finbot turns away a request without it. With `telegramOutgoingWebhook` set and no
-   `telegramSecretToken`, finbot turns Telegram off (it says so in the log at start). The key was called
-   `telegramOutgoingToken`, which still works, with a note in the log to rename it.
+   every update, and finbot turns away a request without it. With `TELEGRAM_OUTGOING_WEBHOOK` set and no
+   `TELEGRAM_SECRET_TOKEN`, finbot turns Telegram off (it says so in the log at start). The key was called
+   `TELEGRAM_OUTGOING_TOKEN`, which still works, with a note in the log to rename it.
 4. Restart finbot. As it starts, it sets the webhook again, deleting it first, which also wakes up a stale connection.
    If Telegram refuses, finbot does not start, and the log says why.
 5. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
 
 ```
-telegramBotToken=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
-telegramOutgoingWebhook=https://www.example.com:8443/telegram
-telegramSecretToken=a-long-random-password
+TELEGRAM_BOT_TOKEN=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
+TELEGRAM_OUTGOING_WEBHOOK=https://www.example.com:8443/telegram
+TELEGRAM_SECRET_TOKEN=a-long-random-password
 ```
 
 ## Preloading charts

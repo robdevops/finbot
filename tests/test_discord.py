@@ -103,8 +103,8 @@ class Endpoint(FinbotCase):
 		"""Discord in http mode, with a key of the test's own."""
 		super().setUp()
 		self.key = SigningKey.generate()
-		self.env(discordBotToken='x', discordOutgoingWebhook='https://example.com/discord',
-			discordPublicKey=self.key.verify_key.encode().hex())
+		self.env(DISCORD_BOT_TOKEN='x', DISCORD_OUTGOING_WEBHOOK='https://example.com/discord',
+			DISCORD_PUBLIC_KEY=self.key.verify_key.encode().hex())
 		self.taken = []
 		self.patch(worker, 'process_request', self.taken.append)
 		self.patch(worker, 'process_callback', self.taken.append)
@@ -170,7 +170,7 @@ class Sending(FinbotCase):
 	def setUp(self):
 		"""The bot token set, and Discord's API answered from self.answers (else 200 and a message)."""
 		super().setUp()
-		self.env(discordBotToken='x')
+		self.env(DISCORD_BOT_TOKEN='x')
 		self.calls, self.answers = [], []
 		def request(method, url, **kwargs):
 			"""Note the call, and give the next answer."""
@@ -393,7 +393,7 @@ class Commands(FinbotCase):
 		self.assertIn('/ratio [SYMBOL] [forward|current|peg] [top|bottom|negative|reverse]', sent[0])
 		self.assertIn('/stock SYMBOL', sent[0])
 		self.assertIn('.price, or <@99> price', sent[0])
-		self.env(discordOutgoingWebhook='https://example.com/discord')
+		self.env(DISCORD_OUTGOING_WEBHOOK='https://example.com/discord')
 		worker.process_request(message)
 		self.assertNotIn('.price, or <@99> price', sent[1])
 
@@ -525,7 +525,7 @@ class Gateway(FinbotCase):
 		"""Discord in pull mode, its REST calls noted (GET /gateway/bot answers a URL), threads that run at once, and no
 		jitter: the first heartbeat comes half an interval in."""
 		super().setUp()
-		self.env(discordBotToken='x', discordOutgoingWebhook='')
+		self.env(DISCORD_BOT_TOKEN='x', DISCORD_OUTGOING_WEBHOOK='')
 		self.patch(discord_websocket, 'threading', types.SimpleNamespace(Thread=Now)) # the listener's threads only
 		self.patch(discord_websocket.random, 'random', lambda: 0.5)
 		self.patch(discord_websocket.random, 'uniform', lambda a, b: 3.0)
@@ -661,7 +661,8 @@ class Gateway(FinbotCase):
 		presses = []
 		self.patch(worker, 'process_callback', presses.append)
 		key = SigningKey.generate()
-		self.env(discordOutgoingWebhook='https://example.com/discord', discordPublicKey=key.verify_key.encode().hex())
+		self.env(DISCORD_OUTGOING_WEBHOOK='https://example.com/discord',
+			DISCORD_PUBLIC_KEY=key.verify_key.encode().hex())
 		body = json.dumps(PRESS).encode()
 		signature = key.sign(b'1700000000' + body).signature.hex()
 		with contextlib.redirect_stderr(io.StringIO()):
@@ -669,7 +670,7 @@ class Gateway(FinbotCase):
 				HTTP_X_SIGNATURE_TIMESTAMP='1700000000'), lambda *a: None).close()
 			self.join_workers()
 			self.patch(bot, '_updates_seen', inbound.Recent()) # a restart in the other mode
-			self.env(discordOutgoingWebhook='')
+			self.env(DISCORD_OUTGOING_WEBHOOK='')
 			pressed = {'op': 0, 't': 'INTERACTION_CREATE', 's': 2, 'd': PRESS}
 			self.gateway([HELLO, READY, pressed, {'op': 7}]).poll(bot.take)
 		self.join_workers()
@@ -679,13 +680,13 @@ class Gateway(FinbotCase):
 			'logged': 'debug'}))
 
 	def test_discord_is_listened_to_with_its_token_and_no_endpoint(self):
-		"""The gateway is used with the bot token and no discordOutgoingWebhook; with the URL (http mode), or without
+		"""The gateway is used with the bot token and no DISCORD_OUTGOING_WEBHOOK; with the URL (http mode), or without
 		the token, it is not."""
-		self.env(telegramBotToken='')
+		self.env(TELEGRAM_BOT_TOKEN='')
 		self.assertEqual([type(listener) for listener in bot.listeners()], [discord_websocket.DiscordGateway])
-		self.env(discordOutgoingWebhook='https://example.com/discord')
+		self.env(DISCORD_OUTGOING_WEBHOOK='https://example.com/discord')
 		self.assertEqual(bot.listeners(), [])
-		self.env(discordOutgoingWebhook='', discordBotToken='')
+		self.env(DISCORD_OUTGOING_WEBHOOK='', DISCORD_BOT_TOKEN='')
 		self.assertEqual(bot.listeners(), [])
 
 

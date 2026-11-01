@@ -133,9 +133,10 @@ def record(output):
 			for target, name, real in real_sending: # what the fixture replaces with recorders, put back
 				self.patch(target, name, real)
 			self.patch(common.time, 'sleep', lambda seconds: None) # no pauses between a long report's messages
-			self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack') # Slack's buttons too
-			if 'discordBotToken' in {field.name for field in common.dataclasses.fields(common.config.env)}:
-				self.env(discordBotToken='discord-test')
+			self.env(SLACK_BOT_TOKEN='xoxb-test', SLACK_OUTGOING_WEBHOOK='https://example.com/slack')
+			# Slack's buttons too
+			if 'DISCORD_BOT_TOKEN' in {field.name for field in common.dataclasses.fields(common.config.env)}:
+				self.env(DISCORD_BOT_TOKEN='discord-test')
 			chats = ('telegram:55', 'slack:C1', 'discord:77')
 			if hasattr(jobs, 'JOBS_FILE'): # the default jobs and those each chat added, since schedules of finbot's own
 				added = [jobs.make_job(*jobs.parse_add(renamed(text, jobs.ACTIONS), 'UTC'), 'telegram:55').stored()

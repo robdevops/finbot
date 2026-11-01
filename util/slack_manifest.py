@@ -3,8 +3,8 @@
 it all up at once: the slash commands, from finbot's own command table; the bot's scopes and events; interactivity, for
 the buttons; the messages tab of App Home, for direct messages; and Socket Mode, on or off.
 
-  util/slack_manifest.py                                  Socket Mode: finbot opens a socket to Slack (slackAppToken)
-  util/slack_manifest.py --url https://example.com/slack  HTTP mode: Slack posts to slackOutgoingWebhook, this URL
+  util/slack_manifest.py                                  Socket Mode: finbot opens a socket to Slack (SLACK_APP_TOKEN)
+  util/slack_manifest.py --url https://example.com/slack  HTTP mode: Slack posts to SLACK_OUTGOING_WEBHOOK, this URL
   util/slack_manifest.py --every-message                  the bot sees every message in its channels, not only the
                                                           ones that mention it, so that .price works there
   util/slack_manifest.py --only price,stock                 just these slash commands: to find which one Slack refuses
@@ -64,7 +64,7 @@ def manifest(name='finbot', url='', every_message=False, only=()):
 def main(argv=None):
 	"""Print the manifest the arguments ask for; 2 for a URL that is not HTTPS, which Slack takes no other."""
 	parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
-	parser.add_argument('--url', default='', help='HTTP mode: slackOutgoingWebhook, which Slack posts to')
+	parser.add_argument('--url', default='', help='HTTP mode: SLACK_OUTGOING_WEBHOOK, which Slack posts to')
 	parser.add_argument('--name', default='finbot', help="the app's and the bot's name (default finbot)")
 	parser.add_argument('--every-message', action='store_true', help='the bot sees every message in its channels')
 	parser.add_argument('--only', default='', help='only these slash commands (names, comma separated)')
