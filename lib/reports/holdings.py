@@ -96,7 +96,8 @@ def prepare_treemap(portfolio_name, by, service, max_groups=8):
 	count = sum(len(held) for held in groups.values())
 	subtitle = f"{_noun(by, len(groups))}, {count} {'holding' if count == 1 else 'holdings'}, " + \
 		formats.date_short(formats.today(), True)
-	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows))
+	return payload, render.Chart('treemap', title, subtitle, tuple((label, tuple(held)) for label, held in rows),
+		source='Sharesight')
 
 def prepare_watchlist(service, chat, user, action=None, ticker=None, removing=()):
 	"""The .watchlist reply in a chat (by its key): the companies it watches, those of `removing` struck through, or one

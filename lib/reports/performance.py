@@ -43,7 +43,8 @@ def report(service, past_days, portfolio_select=None):
 	payload = [service.bold(f"Performance over {period}")] + [line for _, line, _ in rows]
 	chart_rows = [(label, percent) for percent, _, label in rows if percent is not None]
 	return payload, render.Chart('bars', "Performance", formats.change_span(past_days, formats.today()),
-		tuple(chart_rows), value_format='percent2')
+		tuple(chart_rows), value_format='percent2',
+		source='Sharesight, Yahoo Finance')
 
 def run(chat, *, past_days=None, portfolio_select=None):
 	"""Post each portfolio's performance over past_days (the past_days setting when None), or the one named, beside
