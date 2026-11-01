@@ -26,7 +26,8 @@ class Tables(unittest.TestCase):
 		"""Startup and setting keys do not overlap, and each startup key is read into Env as its field's type says (the
 		data dir from DATA_DIR): a key is a field, so none can be listed and never read."""
 		self.assertEqual(set(config.STARTUP_KEYS) & set(config.SETTING_KEYS), set())
-		given = {key: '7' if key in ('port', 'scheduler_catchup') else f'{key}-value' for key in config.STARTUP_KEYS}
+		given = {key: '7' if key in ('port', 'scheduler_catchup') else 'auto' if key == 'DARKMODE' else f'{key}-value'
+			for key in config.STARTUP_KEYS}
 		env = config.startup_values(lambda name, default=None: given.get(name, default))
 		self.assertEqual({key: getattr(env, key) for key in config.STARTUP_KEYS if key != 'DATA_DIR'},
 			{key: 7 if value == '7' else value for key, value in given.items() if key != 'DATA_DIR'})

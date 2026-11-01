@@ -241,6 +241,7 @@ class Env:
 	is a field with its default, read as its type says (startup_values), but those worked out from them (DERIVED)."""
 	ip: str = '127.0.0.1'
 	port: int = 5000
+	DARKMODE: str = 'off' # the charts' theme, one of DARKMODES; all caps, like DATA_DIR
 	scheduler_catchup: int = 5 # minutes: a run missed while the bot was down still fires if it was due this recently
 	sharesight_client_id: str = '' # '' without Sharesight: a chat's reports then cover its watchlist alone
 	sharesight_client_secret: str = ''
@@ -287,7 +288,8 @@ def startup_values(getenv):
 		return getenv(newer[name], default) if name in newer and getenv(name, '') == '' else value
 	r = _Reader(read)
 	readers = {int: r.int, str: r.str}
-	keys = {field.name: readers[field.type](field.name, field.default) for field in dataclasses.fields(Env)
+	keys = {field.name: (lambda name, default: r.choice(name, default, DARKMODES) if name == 'DARKMODE'
+		else readers[field.type](name, default))(field.name, field.default) for field in dataclasses.fields(Env)
 		if field.name not in DERIVED}
 	r.check()
 	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or
@@ -307,7 +309,6 @@ class Settings:
 	cache: bool = True
 	cache_seconds: int = 21600
 	country_code: str = 'AU'
-	darkmode: str = 'off' # charts' theme: one of DARKMODES
 	demote_leveraged: bool = True
 	demote_volatile: bool = True
 	exchange_suffix: str = 'AX' # Yahoo's suffix for the local exchange: a bare ticker Yahoo does not know gets it
@@ -344,7 +345,6 @@ def setting_values(values):
 		'admin_only': r.blankable_words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
 		'country_code': lambda name, default: r.str(name, default).strip().upper(),
-		'darkmode': lambda name, default: r.choice(name, default, DARKMODES),
 		'hyperlinkProvider': lambda name, default: r.choice(name, default, ('google', 'yahoo')),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS),
 		'timezone': r.zone}

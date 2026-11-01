@@ -63,7 +63,7 @@ def is_dark():
 	"""Whether charts are drawn dark now: the darkmode setting (on; auto: at night in the timezone setting)."""
 	if (settled := _dark_now.get()) is not None:
 		return settled
-	mode = config.settings.darkmode
+	mode = config.env.DARKMODE
 	if mode == 'auto':
 		hour = datetime.datetime.now(zoneinfo.ZoneInfo(config.settings.timezone)).hour
 		return hour >= NIGHT[0] or hour < NIGHT[1]
