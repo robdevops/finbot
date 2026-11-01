@@ -743,7 +743,8 @@ def draw_treemap(chart):
 	canvas = _Canvas(W, H, bg, scale=1) # upright edges alone: nothing to smooth
 	total = sum(value for _, held in rows for _, value in held) or 1.0
 	top = _plot_top(chart.subtitle) # below the heading, as the other charts are
-	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, top, W, H - top) # 2px edges, with gaps
+	foot = 0.04 * H if chart.source else 0 # a strip below the tiles for the source
+	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, top, W, H - top - foot) # 2px edges, gaps
 	n = 0
 	for (label, held), (x, y, w, h) in zip(rows, box):
 		color = '#6b7280' if label == 'Other' else CATEGORIES[n % len(CATEGORIES)]
