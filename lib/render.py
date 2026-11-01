@@ -86,7 +86,7 @@ FONTS = ('DejaVuSans.ttf', 'DejaVuSans-Bold.ttf') # the system's DejaVu Sans, ma
 ASCENT, DESCENT = 0.76, 0.21 # its tallest letters and descenders, in ems: a line of text sits as matplotlib set it
 SLANT = 0.2 # italic: the upright face sheared by 11 degrees, as its oblique is (not in fonts-dejavu-core)
 
-_source = contextvars.ContextVar('source', default='') # draw() cites the chart's source on its canvas
+_source = contextvars.ContextVar('source', default=None) # draw() cites the chart's (source, kind) on its canvas
 _drawing = threading.RLock() # one chart at a time: Pillow's fonts are shared by every thread
 
 def preload():
@@ -177,7 +177,9 @@ class _Canvas:
 		image = self.image.reduce(self.scale) if self.scale > 1 else self.image
 		pen = ImageDraw.Draw(image)
 		if cited := _source.get():
-			self.text(0.03 * W, self.height - 0.012 * H, f"Source: {cited}", 6.5, palette()[2], va='bottom')
+			source, kind = cited
+			color = 'white' if kind == 'shorts' else palette()[2] # the shorts chart's foot is the sea: as its joke
+			self.text(0.03 * W, self.height - 0.012 * H, f"Source: {source}", 6.5, color, va='bottom')
 		for x, baseline, line, size, color, bold, italic in self.writing:
 			if italic:
 				_slanted(image, x, baseline, line, size, color)
@@ -783,7 +785,7 @@ def draw(chart):
 	name = f"finbot_chart_{hashlib.sha1(key.encode()).hexdigest()[:20]}.png"
 	if config.settings.cache and (image := cache.read_bytes(name, math.inf)): # kept until cleanup: it never goes stale
 		return image
-	token, cited = _dark_now.set(dark), _source.set(chart.source)
+	token, cited = _dark_now.set(dark), _source.set((chart.source, chart.kind) if chart.source else None)
 	try:
 		image = RENDERERS[chart.kind](trimmed(chart))
 	finally:
