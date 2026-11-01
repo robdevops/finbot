@@ -577,7 +577,7 @@ def draw_bars(chart):
 	_heading(canvas, chart.title, subtitle)
 	return canvas.png()
 
-DISCLAIMER = 'Past performance is not indicative of future results. For information only; not financial advice.'
+DISCLAIMER = 'Past fashion not indicative of future fashion. For information only; not financial advice'
 PAIR = 5 # the percent of shares shorted that a pair of shorts stands for
 
 @_drawn
@@ -645,9 +645,9 @@ def draw_shorts(chart):
 	mc = (0.13, 0.37) # the mouth shrinks towards its middle
 	mouth = [at(mc[0] + 0.65 * (u - mc[0]), mc[1] + 0.65 * (v - mc[1])) for u, v in mouth]
 	canvas.polygon([*mouth[:2], *_bezier(*mouth[1:5]), *_bezier(*mouth[4:8])], '#2b2118')
-	canvas.rect(0, 726, W, H, sea)
+	canvas.rect(0, 748, W, H, sea)
 	for cx in range(0, W + 36, 36):
-		canvas.circle(cx, 726, 19, foam)
+		canvas.circle(cx, 748, 19, foam)
 
 	stamps = {}
 	for i, (label, value) in enumerate(rows):
@@ -682,8 +682,7 @@ def draw_shorts(chart):
 		cy = top + (i + 0.5) * row_h
 		canvas.text(x0 - 14, cy, label, size, ink, ha='right', bold=True)
 		canvas.text(x0 + (value / PAIR) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True)
-	canvas.text(W / 2, 757, 'past fashion not indicative of future fashion', 8, 'white', ha='center', italic=True)
-	canvas.text(W - 0.03 * W, H - 0.012 * H, DISCLAIMER, 6.5, 'white', ha='right', va='bottom')
+	canvas.text(W - 0.03 * W, 784, DISCLAIMER, 7, 'white', ha='right', italic=True)
 	return canvas.png()
 
 def _worst(row, side):
