@@ -25,7 +25,7 @@ of the chat network keys it needs.
 | `SCHEDULER_CATCHUP` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
 | `SHARESIGHT_CLIENT_ID` | | Sharesight API access |
 | `SHARESIGHT_CLIENT_SECRET` | | Sharesight API access |
-| `TELEGRAM_BOT_TOKEN` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `TELEGRAM_OUTGOING_WEBHOOK` is set) |
+| `TELEGRAM_BOTTOKEN` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `TELEGRAM_OUTGOING_WEBHOOK` is set) |
 | `SLACK_BOT_TOKEN` | | Slack bot token, for replies and chart uploads in Slack |
 | `SLACK_APP_TOKEN` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `SLACK_OUTGOING_WEBHOOK` is empty |
 | `TELEGRAM_OUTGOING_WEBHOOK` | | The URL Telegram posts its updates to (push mode); empty, finbot fetches them (pull mode) |
@@ -67,6 +67,7 @@ The administrators of the chat a person is in are admins there with no setting: 
 | `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
 | `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
 | `graph` | `True` | Send charts with reports |
+| `darkmode` | `off` | The charts' theme. `off`: light; `on`: dark; `auto`: dark from 18:00 to 06:00 in the `timezone` setting, light by day. The shorts chart keeps its own colours |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` (any other value stops a start or a reload, naming the key) |

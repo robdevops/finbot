@@ -33,7 +33,7 @@ class Tables(unittest.TestCase):
 			{key: 7 if value == '7' else value for key, value in given.items() if key != 'DATA_DIR'})
 		self.assertEqual((env.data_dir, env.cache_dir), (str(REPO / 'DATA_DIR-value'),
 			str(REPO / 'DATA_DIR-value' / 'cache')))
-		self.assertEqual(env.telegram_api, 'https://api.telegram.org/botTELEGRAM_BOT_TOKEN-value/')
+		self.assertEqual(env.telegram_api, 'https://api.telegram.org/botTELEGRAM_BOTTOKEN-value/')
 
 	def test_unset_settings_take_their_defaults(self):
 		"""An unset setting takes its field's default, as it is: reading tidies nothing away."""
@@ -478,7 +478,7 @@ class Startup(unittest.TestCase):
 		for token, api in (('123:abc', 'https://api.telegram.org/bot123:abc/'), ('123:abc/',
 				'https://api.telegram.org/bot123:abc/'), ('', '')):
 			values = config.startup_values(
-				lambda name, default=None: token if name == 'TELEGRAM_BOT_TOKEN' else default)
+				lambda name, default=None: token if name == 'TELEGRAM_BOTTOKEN' else default)
 			self.assertEqual(values.telegram_api, api)
 
 	def test_settings_that_leave_part_of_the_bot_unable_to_work_are_warned_about(self):

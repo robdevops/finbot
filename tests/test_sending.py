@@ -336,7 +336,7 @@ class TelegramSending(FinbotCase):
 		cache setting off."""
 		sent = self.photos()
 		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
-		self.env(TELEGRAM_BOT_TOKEN='Y')
+		self.env(TELEGRAM_BOTTOKEN='Y')
 		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
 		self.settings(cache=False)
 		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')

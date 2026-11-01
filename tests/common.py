@@ -133,7 +133,7 @@ class FinbotCase(unittest.TestCase):
 		self.patch(requests.Session, 'request', mock.Mock(return_value=fake)) # no real network traffic
 		tmp = tempfile.TemporaryDirectory()
 		self.addCleanup(tmp.cleanup)
-		self.env(data_dir=tmp.name, cache_dir=tmp.name, TELEGRAM_BOT_TOKEN='X',
+		self.env(data_dir=tmp.name, cache_dir=tmp.name, TELEGRAM_BOTTOKEN='X',
 			telegram_api='https://api.telegram.org/botX/', SHARESIGHT_CLIENT_ID='test') # its answers are the fixtures
 		self.patch(bot, '_updates_seen', inbound.Recent()) # each test starts with no update taken
 		self.patch(bot, '_said', inbound.Recent()) # nor any message

@@ -10,7 +10,7 @@ class TelegramPoll(pull.Listener):
 	passed, asking for those after the last one taken (offset), which also tells Telegram that one arrived. No webhook
 	may be set meanwhile: telegram_common.start deletes it as finbot starts."""
 	network = telegram_common.READER
-	TOKENS = ('TELEGRAM_BOT_TOKEN',)
+	TOKENS = ('TELEGRAM_BOTTOKEN',)
 	WEBHOOK_URL = 'TELEGRAM_OUTGOING_WEBHOOK'
 	MODE = 'long polling for updates'
 	POLL_SECONDS = 50 # how long Telegram may hold a getUpdates open

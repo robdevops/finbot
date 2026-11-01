@@ -36,6 +36,7 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 }
 RENAMED = {} # startup keys under a new name: the old still works (the new wins where both are set), with a note
 SERVICE_DATA_DIR = '/var/lib/private/finbot' # systemd's state directory of finbot.service (StateDirectory=)
+DARKMODES = ('off', 'on', 'auto') # darkmode's values: light charts, dark ones, or dark at night (lib/render.py)
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -246,7 +247,7 @@ class Env:
 	SLACK_OUTGOING_TOKEN: str = ''
 	SLACK_OUTGOING_WEBHOOK: str = ''
 	SLACK_SIGNING_SECRET: str = ''
-	TELEGRAM_BOT_TOKEN: str = ''
+	TELEGRAM_BOTTOKEN: str = ''
 	TELEGRAM_SECRET_TOKEN: str = ''
 	TELEGRAM_OUTGOING_WEBHOOK: str = ''
 	DISCORD_BOT_TOKEN: str = ''
@@ -255,7 +256,7 @@ class Env:
 	data_dir: str = str(REPO_DIR / 'var') # DATA_DIR, else systemd's STATE_DIRECTORY: each chat's jobs, the watchlist,
 	# seen trades, ratings, settings.conf; a relative one is in the checkout, wherever finbot starts
 	cache_dir: str = str(REPO_DIR / 'var' / 'cache') # data_dir/cache
-	telegram_api: str = '' # the Bot API's base URL for TELEGRAM_BOT_TOKEN ('' without one): a method's name follows it
+	telegram_api: str = '' # the Bot API's base URL for TELEGRAM_BOTTOKEN ('' without one): a method's name follows it
 
 	@property
 	def settings_path(self):
@@ -289,7 +290,7 @@ def startup_values(getenv):
 	r.check()
 	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or
 		service_data_dir() or 'var'))
-	token = keys['TELEGRAM_BOT_TOKEN'].rstrip('/')
+	token = keys['TELEGRAM_BOTTOKEN'].rstrip('/')
 	return Env(**keys, data_dir=data_dir, cache_dir=data_dir + '/cache',
 		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')
 
@@ -304,6 +305,7 @@ class Settings:
 	cache: bool = True
 	cache_seconds: int = 21600
 	country_code: str = 'AU'
+	darkmode: str = 'off' # charts' theme: one of DARKMODES
 	demote_leveraged: bool = True
 	demote_volatile: bool = True
 	exchange_suffix: str = 'AX' # Yahoo's suffix for the local exchange: a bare ticker Yahoo does not know gets it
@@ -340,6 +342,7 @@ def setting_values(values):
 		'admin_only': r.blankable_words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
 		'country_code': lambda name, default: r.str(name, default).strip().upper(),
+		'darkmode': lambda name, default: r.choice(name, default, DARKMODES),
 		'hyperlinkProvider': lambda name, default: r.choice(name, default, ('google', 'yahoo')),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS),
 		'timezone': r.zone}

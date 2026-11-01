@@ -46,7 +46,7 @@ REFUSED_PHOTO = re.compile(r'file identifier|file reference|file_id|MEDIA_EMPTY'
 def photo_file(photo):
 	"""The cache file that holds the file id of a chart (its PNG bytes) uploaded to Telegram: by the chart and the bot,
 	whose own uploads alone it shows by id."""
-	return f"finbot_telegram_photo_{hashlib.sha1(config.env.TELEGRAM_BOT_TOKEN.encode() + photo).hexdigest()[:20]}.json"
+	return f"finbot_telegram_photo_{hashlib.sha1(config.env.TELEGRAM_BOTTOKEN.encode() + photo).hexdigest()[:20]}.json"
 
 
 def view_file(view):

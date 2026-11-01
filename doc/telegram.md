@@ -11,8 +11,8 @@ Telegram:
 |---|---|---|
 | How messages and button presses reach finbot | finbot asks Telegram for them (long polling) | Telegram posts them to your HTTPS server |
 | Listens on the internet | No: finbot only makes outgoing requests | Yes, behind your HTTPS server: a domain name with a valid certificate, on port 443, 80, 88 or 8443 |
-| Security | Nothing arrives unasked: finbot's own requests carry the bot token (`TELEGRAM_BOT_TOKEN`) | The secret token (`TELEGRAM_SECRET_TOKEN`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
-| `finbot.env` keys | `TELEGRAM_BOT_TOKEN` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OUTGOING_WEBHOOK` and `TELEGRAM_SECRET_TOKEN` |
+| Security | Nothing arrives unasked: finbot's own requests carry the bot token (`TELEGRAM_BOTTOKEN`) | The secret token (`TELEGRAM_SECRET_TOKEN`) that finbot gave Telegram when setting the webhook, which Telegram sends back in a header with every update. Without it, finbot turns Telegram off |
+| `finbot.env` keys | `TELEGRAM_BOTTOKEN` | `TELEGRAM_BOTTOKEN`, `TELEGRAM_OUTGOING_WEBHOOK` and `TELEGRAM_SECRET_TOKEN` |
 
 Everything else is the same in both: the scheduled reports with their charts, the chat commands (`/price`, `/movers`,
 `/performance` and the rest, [the list](commands.md#supported-commands), or as messages, `.price`), period buttons
@@ -40,7 +40,7 @@ arrive after the switch.
 ## Pull mode
 
 1. Create the bot: message [@BotFather](https://telegram.me/BotFather), send `/newbot` and answer its questions. It
-   replies with the bot's token: put it in `finbot.env` as `TELEGRAM_BOT_TOKEN`.
+   replies with the bot's token: put it in `finbot.env` as `TELEGRAM_BOTTOKEN`.
 2. Add the bot to the groups or channels it should work in, or message it directly. In a channel, make it an
    administrator, so that it can post.
 3. Optionally, for commands as plain messages (`.price`) in a group: let the bot read the chat, by making it an
@@ -53,7 +53,7 @@ arrive after the switch.
    Each chat has the default scheduled jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
-TELEGRAM_BOT_TOKEN=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
+TELEGRAM_BOTTOKEN=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 ```
 
 ## Push mode
@@ -92,7 +92,7 @@ with a valid certificate. Telegram posts only to ports 443, 80, 88 and 8443.
 5. Send `/help` in the chat. In a direct chat with the bot, a keyboard of the common commands follows the reply.
 
 ```
-TELEGRAM_BOT_TOKEN=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
+TELEGRAM_BOTTOKEN=0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAA
 TELEGRAM_OUTGOING_WEBHOOK=https://www.example.com:8443/telegram
 TELEGRAM_SECRET_TOKEN=a-long-random-password
 ```

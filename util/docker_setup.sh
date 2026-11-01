@@ -35,7 +35,7 @@ fi
 cat <<NEXT
 
 Next:
-  1. Set your chatbot's API key in $startup (TELEGRAM_BOT_TOKEN for Telegram; see doc/)
+  1. Set your chatbot's API key in $startup (TELEGRAM_BOTTOKEN for Telegram; see doc/)
   2. cd $repo && sudo docker compose up -d --build
   3. sudo docker compose logs -f
 NEXT

@@ -34,7 +34,7 @@ MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram o
 WEBHOOKS = (telegram_webhook.WEBHOOK, slack_webhook.WEBHOOK, discord_webhook.WEBHOOK) # HTTP: each network posts
 LISTENERS = (telegram_longpolling.TelegramPoll, slack_websocket.SlackSocket, discord_websocket.DiscordGateway) # pull
 SECRET_HEADERS = {name for hook in WEBHOOKS for name in hook.SECRET_HEADERS} # redacted where headers are logged
-STARTS = ((telegram_common, 'TELEGRAM_BOT_TOKEN'), (discord_common, 'DISCORD_BOT_TOKEN')) # each network set up as
+STARTS = ((telegram_common, 'TELEGRAM_BOTTOKEN'), (discord_common, 'DISCORD_BOT_TOKEN')) # each network set up as
 # finbot starts (start: Telegram's webhook and menu, Discord's slash commands), where finbot.env has its key
 _updates_seen = inbound.Recent() # (service, update id) of the last updates taken: a resent one may race its first copy
 DOUBLED = 1 # seconds in which the same message, from the same person in the same chat, is taken once
@@ -316,7 +316,7 @@ if __name__ == '__main__':
 			except Exception as e:
 				log.error('ERROR', delivery.error_line(e, network.READER.service))
 				sys.exit(1)
-	if config.env.TELEGRAM_BOT_TOKEN: # stale DM keyboards, in the background
+	if config.env.TELEGRAM_BOTTOKEN: # stale DM keyboards, in the background
 		threading.Thread(target=telegram_common.refresh_keyboards, args=(worker.KEYBOARD,), daemon=True).start()
 	threading.Thread(target=jobs.current.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	for listener in listeners(): # the networks without a webhook: finbot fetches their updates
