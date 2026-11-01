@@ -143,22 +143,22 @@ jobs:
           fi
 
   notify:
-    # Telegram alert when the weekly run fails. Needs repository secrets TELEGRAM_BOTTOKEN and TELEGRAM_CHAT_ID.
+    # Telegram alert when the weekly run fails. Needs repository secrets TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
     needs: [test, docker]
     if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     steps:
       - name: Send Telegram message
         env:
-          TELEGRAM_BOTTOKEN: ${{ secrets.TELEGRAM_BOTTOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -z "$TELEGRAM_BOTTOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "::warning::TELEGRAM_BOTTOKEN / TELEGRAM_CHAT_ID secrets are not set; no notification sent"
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets are not set; no notification sent"
             exit 0
           fi
-          curl -sS --fail-with-body "https://api.telegram.org/bot${TELEGRAM_BOTTOKEN}/sendMessage" \
+          curl -sS --fail-with-body "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
             --data-urlencode "disable_web_page_preview=true" \
             --data-urlencode "text=⚠️ ${GITHUB_REPOSITORY}: weekly tests failed

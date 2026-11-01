@@ -25,7 +25,7 @@ of the chat network keys it needs.
 | `SCHEDULER_CATCHUP` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
 | `SHARESIGHT_CLIENT_ID` | | Sharesight API access |
 | `SHARESIGHT_CLIENT_SECRET` | | Sharesight API access |
-| `TELEGRAM_BOTTOKEN` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `TELEGRAM_OUTGOING_WEBHOOK` is set) |
+| `TELEGRAM_BOT_TOKEN` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `TELEGRAM_OUTGOING_WEBHOOK` is set) |
 | `SLACK_BOT_TOKEN` | | Slack bot token, for replies and chart uploads in Slack |
 | `SLACK_APP_TOKEN` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `SLACK_OUTGOING_WEBHOOK` is empty |
 | `TELEGRAM_OUTGOING_WEBHOOK` | | The URL Telegram posts its updates to (push mode); empty, finbot fetches them (pull mode) |

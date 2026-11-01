@@ -22,7 +22,7 @@ class TelegramPolling(FinbotCase):
 	def setUp(self):
 		"""Telegram in pull mode: a bot token and no webhook URL; telegram_common.call answers from self.answers."""
 		super().setUp()
-		self.env(TELEGRAM_BOTTOKEN='123:abc', TELEGRAM_OUTGOING_WEBHOOK='')
+		self.env(TELEGRAM_BOT_TOKEN='123:abc', TELEGRAM_OUTGOING_WEBHOOK='')
 		self.calls, self.answers = [], []
 		def call(method, **kwargs):
 			"""Note the call, and give the next answer (an exception is raised)."""
@@ -132,12 +132,12 @@ class TelegramPolling(FinbotCase):
 		self.assertEqual([type(listener) for listener in bot.listeners()], [telegram_longpolling.TelegramPoll])
 		self.env(TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram')
 		self.assertEqual(bot.listeners(), [])
-		self.env(TELEGRAM_BOTTOKEN='', TELEGRAM_OUTGOING_WEBHOOK='')
+		self.env(TELEGRAM_BOT_TOKEN='', TELEGRAM_OUTGOING_WEBHOOK='')
 		self.assertEqual(bot.listeners(), [])
 
 	def test_the_networks_line_names_each_enabled_network_and_how_it_reaches_finbot(self):
 		"""Startup logs the enabled networks, each pushed (its webhook URL is set) or pulled (finbot fetches)."""
-		self.env(TELEGRAM_BOTTOKEN='1:a', TELEGRAM_OUTGOING_WEBHOOK='', SLACK_BOT_TOKEN='xoxb-1',
+		self.env(TELEGRAM_BOT_TOKEN='1:a', TELEGRAM_OUTGOING_WEBHOOK='', SLACK_BOT_TOKEN='xoxb-1',
 			SLACK_APP_TOKEN='xapp-1', SLACK_OUTGOING_WEBHOOK='', DISCORD_BOT_TOKEN='d',
 			DISCORD_OUTGOING_WEBHOOK='https://example.com/discord', DISCORD_PUBLIC_KEY='ab' * 32)
 		self.assertEqual(bot.networks_line(), 'networks: discord (push), slack (pull), telegram (pull)')
@@ -145,7 +145,7 @@ class TelegramPolling(FinbotCase):
 		self.assertEqual(bot.networks_line(), 'networks: slack (pull), telegram (pull)')
 		self.env(SLACK_APP_TOKEN='', DISCORD_BOT_TOKEN='', TELEGRAM_OUTGOING_WEBHOOK='https://example.com/t')
 		self.assertEqual(bot.networks_line(), 'networks: telegram (push)') # Slack has no way to hear; Discord is off
-		self.env(TELEGRAM_BOTTOKEN='')
+		self.env(TELEGRAM_BOT_TOKEN='')
 		self.assertEqual(bot.networks_line(), 'networks: none')
 
 	def test_a_press_polled_for_is_the_press_the_webhook_gets(self):
@@ -339,7 +339,7 @@ class SlackSocketMode(FinbotCase):
 	def test_slack_is_listened_to_with_both_tokens_and_no_webhook(self):
 		"""The socket is opened with the bot and app-level tokens and no SLACK_OUTGOING_WEBHOOK; with the URL (http
 		mode), or without either token, it is not."""
-		self.env(TELEGRAM_BOTTOKEN='')
+		self.env(TELEGRAM_BOT_TOKEN='')
 		self.assertEqual([type(listener) for listener in bot.listeners()], [slack_websocket.SlackSocket])
 		for changes in ({'SLACK_OUTGOING_WEBHOOK': 'https://example.com/slack'}, {'SLACK_APP_TOKEN': ''},
 				{'SLACK_BOT_TOKEN': ''}):

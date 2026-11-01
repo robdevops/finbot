@@ -247,7 +247,7 @@ class Env:
 	SLACK_OUTGOING_TOKEN: str = ''
 	SLACK_OUTGOING_WEBHOOK: str = ''
 	SLACK_SIGNING_SECRET: str = ''
-	TELEGRAM_BOTTOKEN: str = ''
+	TELEGRAM_BOT_TOKEN: str = ''
 	TELEGRAM_SECRET_TOKEN: str = ''
 	TELEGRAM_OUTGOING_WEBHOOK: str = ''
 	DISCORD_BOT_TOKEN: str = ''
@@ -256,7 +256,7 @@ class Env:
 	data_dir: str = str(REPO_DIR / 'var') # DATA_DIR, else systemd's STATE_DIRECTORY: each chat's jobs, the watchlist,
 	# seen trades, ratings, settings.conf; a relative one is in the checkout, wherever finbot starts
 	cache_dir: str = str(REPO_DIR / 'var' / 'cache') # data_dir/cache
-	telegram_api: str = '' # the Bot API's base URL for TELEGRAM_BOTTOKEN ('' without one): a method's name follows it
+	telegram_api: str = '' # the Bot API's base URL for TELEGRAM_BOT_TOKEN ('' without one): a method's name follows it
 
 	@property
 	def settings_path(self):
@@ -290,7 +290,7 @@ def startup_values(getenv):
 	r.check()
 	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or
 		service_data_dir() or 'var'))
-	token = keys['TELEGRAM_BOTTOKEN'].rstrip('/')
+	token = keys['TELEGRAM_BOT_TOKEN'].rstrip('/')
 	return Env(**keys, data_dir=data_dir, cache_dir=data_dir + '/cache',
 		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')
 

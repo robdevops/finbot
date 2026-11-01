@@ -682,7 +682,7 @@ class Gateway(FinbotCase):
 	def test_discord_is_listened_to_with_its_token_and_no_endpoint(self):
 		"""The gateway is used with the bot token and no DISCORD_OUTGOING_WEBHOOK; with the URL (http mode), or without
 		the token, it is not."""
-		self.env(TELEGRAM_BOTTOKEN='')
+		self.env(TELEGRAM_BOT_TOKEN='')
 		self.assertEqual([type(listener) for listener in bot.listeners()], [discord_websocket.DiscordGateway])
 		self.env(DISCORD_OUTGOING_WEBHOOK='https://example.com/discord')
 		self.assertEqual(bot.listeners(), [])

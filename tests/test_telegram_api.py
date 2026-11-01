@@ -124,7 +124,7 @@ class TelegramWebhook(FinbotCase):
 				'print("quiet")')
 		with tempfile.TemporaryDirectory() as data:
 			out = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True,
-				env={**os.environ, 'DATA_DIR': data, 'TELEGRAM_BOTTOKEN': '123:abc',
+				env={**os.environ, 'DATA_DIR': data, 'TELEGRAM_BOT_TOKEN': '123:abc',
 					'TELEGRAM_OUTGOING_WEBHOOK': 'https://example.com/telegram'})
 		self.assertEqual(out.stdout.split()[-1:], ['quiet'], out.stderr)
 
@@ -160,7 +160,7 @@ class TelegramWebhook(FinbotCase):
 		with tempfile.TemporaryDirectory() as data:
 			env = {k: v for k, v in bare_environment().items() if 'proxy' not in k.lower()}
 			no_jobs(data)
-			env.update(DATA_DIR=data, PORT='0', TELEGRAM_BOTTOKEN='123456:SECRET-token',
+			env.update(DATA_DIR=data, PORT='0', TELEGRAM_BOT_TOKEN='123456:SECRET-token',
 				TELEGRAM_SECRET_TOKEN='tok',
 					   TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram',
 					   # unreachable, so the registration fails at once and offline
