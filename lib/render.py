@@ -575,7 +575,6 @@ def draw_bars(chart):
 	_heading(canvas, chart.title, subtitle)
 	return canvas.png()
 
-DISCLAIMER = ('Past performance is not indicative of future results. For information only; not financial advice.')
 PAIR = 5 # the percent of shares shorted that a pair of shorts stands for
 
 @_drawn
@@ -615,17 +614,16 @@ def draw_shorts(chart):
 		canvas.polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)),
 			(sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))], ray)
 
-	top, bottom = 205, 726 # below the sun
+	top, bottom = 150, 680 # just below the subtitle, clear of the sea
 	n = len(rows)
-	row_h = min((bottom - top) / n, 110)
-	top += ((bottom - top) - row_h * n) / 2 # few rows sit in the middle of the beach, not the top
+	row_h = min((bottom - top) / n, 100)
 	bottom = top + row_h * n
 	size = max(6, min(18, row_h * 0.5 * 72 / 200 * 2))
 	label_w = max(canvas.measure(str(label), size, bold=True) for label, _ in rows)
-	x0 = 40 + label_w + 16
-	room = 40 + 120 # right-hand text: the percent
+	x0 = 24 + label_w + 16 # the panel sits a little left of the title's margin
+	room = 24 + 120 # right-hand text: the percent
 	max_icons = max(math.ceil(max(v for _, v in rows if v is not None) / PAIR), 1)
-	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 120)
+	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 108)
 	icon_h = icon_w / 1.1
 	lw = max(0.6, min(1.6, icon_w / 45))
 
@@ -681,7 +679,7 @@ def draw_shorts(chart):
 		cy = top + (i + 0.5) * row_h
 		canvas.text(x0 - 14, cy, label, size, ink, ha='right', bold=True)
 		canvas.text(x0 + (value / PAIR) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True)
-	canvas.text(W - 0.03 * W, 784, DISCLAIMER, 6.5, 'white', ha='right')
+	canvas.text(W / 2, 784, 'past fashion not indicative of future fashion', 8, 'white', ha='center', italic=True)
 	return canvas.png()
 
 def _worst(row, side):
