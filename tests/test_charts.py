@@ -142,7 +142,7 @@ class ImageSanity(unittest.TestCase):
 		"""A chart with a source has it written at the foot, and still draws a sane image."""
 		plain = uncached(render.Chart('bars', 'T', 'sub', tuple(MIXED)))
 		cited = uncached(render.Chart('bars', 'T', 'sub', tuple(MIXED), source='Yahoo Finance'))
-		foot = (900, 760, 1280, 800)
+		foot = (0, 760, 400, 800)
 		self.assertIsNotNone(ImageChops.difference(decode(plain).convert('RGB').crop(foot),
 			decode(cited).convert('RGB').crop(foot)).getbbox())
 		cited.seek(0)
