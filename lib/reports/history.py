@@ -40,7 +40,7 @@ def prepare_compare(service, tickers, period_days=None):
 	subtitle = f"% change over {period_label}, {formats.date_span(start, end)}" + note
 	lines = tuple((formats.short_ticker(t), tuple((f"{day:%Y-%m-%d}", float(close)) for day, close in rows))
 		for t, rows in cropped)
-	chart = render.Chart('compare', title, subtitle, lines)
+	chart = render.Chart('compare', title, subtitle, lines, source='Yahoo Finance')
 	caption = [service.bold(f"{period_label}, since {start:%-d %b %Y}") + note]
 	results = sorted(((growth(rows) - 1) * 100, t) for t, rows in cropped)
 	for pct, t in reversed(results):
@@ -63,7 +63,8 @@ def line_chart(ticker, changes, line, days=None):
 	price = ' '.join(filter(None, (formats.price(line.price), line.currency)))
 	shown = formats.date_span(*(datetime.date.fromisoformat(line.closes[end][0]) for end in (0, -1))) # its dates
 	subtitle = f"{price}   {arrow} {abs(change):,g}%   {shown}"
-	return render.Chart('line', f"{line.name} ({ticker}) {span}", subtitle, line.closes, change=float(change))
+	return render.Chart('line', f"{line.name} ({ticker}) {span}", subtitle, line.closes, change=float(change),
+		source='Yahoo Finance')
 
 def price_line(ticker, days=None, quote=None):
 	"""(its changes, its line chart or None) of a ticker over `days`, else over its whole history, to the price of its

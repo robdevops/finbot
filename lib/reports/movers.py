@@ -139,7 +139,8 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 	if not top:
 		heading = lambda when: HEADINGS[mode].format(threshold=threshold, when=when, where=", ".join(found.exchanges))
 		session = mode if mode in ('midsession', 'premarket') else None
-		chart = render.Chart('bars', heading(''), subtitle, tuple(label(found.rows)), session=session)
+		chart = render.Chart('bars', heading(''), subtitle, tuple(label(found.rows)), session=session,
+			source='Yahoo Finance')
 		return [service.bold(heading(f', {span}'))] + lines, chart
 	worst = [i for i in reversed(range(len(found.rows))) if i >= top][:top] # the worst, worst first, none of the best
 	payload = [service.bold(f'Top {top} movers {span}')] + lines[:top]
@@ -148,7 +149,7 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 	bars = label(found.rows[:top]) # the best, then after a gap the worst, the worst last
 	if worst:
 		bars += [("", None)] + label(found.rows[i] for i in reversed(worst))
-	return payload, render.Chart('bars', f"Top & bottom {top}", subtitle, tuple(bars))
+	return payload, render.Chart('bars', f"Top & bottom {top}", subtitle, tuple(bars), source='Yahoo Finance')
 
 def nothing(mode, threshold, user, ticker, in_session):
 	"""What a chat is told when nothing meets the threshold, or the one ticker asked for (.session, .premarket) has no

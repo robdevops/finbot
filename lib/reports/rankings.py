@@ -89,7 +89,8 @@ def prepare_rating_payload(service, chat, actions, length=None, asked=True):
 	# zoom the axis onto the ratings so the bars fill the panel (ratings only run 1-5)
 	chart = render.Chart('bars', title, f"Mean rating of {analysts}: 1 = strong buy, 5 = strong sell (axis zoomed), "
 		+ formats.date_short(formats.today(), True), tuple(rows), value_format='number',
-		xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)), red_rows=tuple(red))
+		xlim=(max(0.9, low - spread * 0.9), min(5.1, high + spread * 0.25)), red_rows=tuple(red),
+		source='Yahoo Finance')
 	return payload, chart
 
 RATIOS = {'forward pe': 'price_to_earnings_forward', 'trailing pe': 'price_to_earnings_trailing',
@@ -146,7 +147,7 @@ def ratio_list(service, chat, kind, mode='top', length=LENGTH):
 	heading = f"{'Bottom' if mode == 'bottom' else 'Top'} {length} tracked stocks by {trail} ratio"
 	subtitle = ', '.join(filter(None, (analysts, formats.date_short(formats.today(), True))))
 	chart = render.Chart('bars', heading, subtitle, tuple((label, float(ratio)) for ratio, label, _ in rows),
-		value_format='number')
+		value_format='number', source='Yahoo Finance')
 	return [service.bold(heading + (f" ({analysts})" if analysts else ''))] + [line for _, _, line in rows], chart
 
 def prepare_beta_payload(service, chat):
@@ -165,5 +166,5 @@ def prepare_beta_payload(service, chat):
 	found.sort(key=lambda row: row[0], reverse=True)
 	heading = 'Beta over 1.5 and mkt cap under US$2B'
 	chart = render.Chart('bars', heading, formats.date_short(formats.today(), True), tuple(row for _, _, row in found),
-		value_format='number')
+		value_format='number', source='Yahoo Finance')
 	return [service.bold(heading)] + [line for _, line, _ in found], chart

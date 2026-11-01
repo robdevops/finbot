@@ -138,6 +138,16 @@ class ImageSanity(unittest.TestCase):
 				else:
 					self.check_image(make(), name)
 
+	def test_a_chart_cites_its_source(self):
+		"""A chart with a source has it written at the foot, and still draws a sane image."""
+		plain = uncached(render.Chart('bars', 'T', 'sub', tuple(MIXED)))
+		cited = uncached(render.Chart('bars', 'T', 'sub', tuple(MIXED), source='Yahoo Finance'))
+		foot = (0, 760, 400, 800)
+		self.assertIsNotNone(ImageChops.difference(decode(plain).convert('RGB').crop(foot),
+			decode(cited).convert('RGB').crop(foot)).getbbox())
+		cited.seek(0)
+		self.check_image(cited, 'cited')
+
 	def test_edge_case_rows(self):
 		"""Rows that broke charts before (one, all zero, forty, long labels, huge or tiny values) draw sane images."""
 		for name, rows in EDGE_ROWS.items():

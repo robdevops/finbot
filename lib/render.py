@@ -35,6 +35,7 @@ class Chart:
 	red_rows: tuple = () # bars: the indices of rows drawn in red though they are not below zero (the sells)
 	threshold: float = None # shorts: the outrageous line
 	change: float = None # line: the change shown, whose sign colours the line and its subtitle
+	source: str = '' # where the data comes from, cited at the foot of the image ('Yahoo Finance')
 
 	@property
 	def drawable(self):
@@ -85,6 +86,7 @@ FONTS = ('DejaVuSans.ttf', 'DejaVuSans-Bold.ttf') # the system's DejaVu Sans, ma
 ASCENT, DESCENT = 0.76, 0.21 # its tallest letters and descenders, in ems: a line of text sits as matplotlib set it
 SLANT = 0.2 # italic: the upright face sheared by 11 degrees, as its oblique is (not in fonts-dejavu-core)
 
+_source = contextvars.ContextVar('source', default='') # draw() cites the chart's source on its canvas
 _drawing = threading.RLock() # one chart at a time: Pillow's fonts are shared by every thread
 
 def preload():
@@ -174,6 +176,8 @@ class _Canvas:
 		from PIL import Image, ImageDraw
 		image = self.image.reduce(self.scale) if self.scale > 1 else self.image
 		pen = ImageDraw.Draw(image)
+		if cited := _source.get():
+			self.text(0.03 * W, self.height - 0.012 * H, f"Source: {cited}", 6.5, palette()[2], va='bottom')
 		for x, baseline, line, size, color, bold, italic in self.writing:
 			if italic:
 				_slanted(image, x, baseline, line, size, color)
@@ -739,7 +743,8 @@ def draw_treemap(chart):
 	canvas = _Canvas(W, H, bg, scale=1) # upright edges alone: nothing to smooth
 	total = sum(value for _, held in rows for _, value in held) or 1.0
 	top = _plot_top(chart.subtitle) # below the heading, as the other charts are
-	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, top, W, H - top) # 2px edges, with gaps
+	foot = 0.04 * H if chart.source else 0 # a strip below the tiles for the source
+	box = _squarify([sum(value for _, value in held) for _, held in rows], 0, top, W, H - top - foot) # 2px edges, gaps
 	n = 0
 	for (label, held), (x, y, w, h) in zip(rows, box):
 		color = '#6b7280' if label == 'Other' else CATEGORIES[n % len(CATEGORIES)]
@@ -798,11 +803,12 @@ def draw(chart):
 	name = f"finbot_chart_{hashlib.sha1(key.encode()).hexdigest()[:20]}.png"
 	if config.settings.cache and (image := cache.read_bytes(name, math.inf)): # kept until cleanup: it never goes stale
 		return image
-	token = _dark_now.set(dark)
+	token, cited = _dark_now.set(dark), _source.set(chart.source)
 	try:
 		image = RENDERERS[chart.kind](trimmed(chart))
 	finally:
 		_dark_now.reset(token)
+		_source.reset(cited)
 	if config.settings.cache:
 		cache.write_bytes(name, image)
 		image.seek(0)
