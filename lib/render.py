@@ -577,7 +577,7 @@ def draw_bars(chart):
 	_heading(canvas, chart.title, subtitle)
 	return canvas.png()
 
-DISCLAIMER = 'Past fashion not indicative of future fashion. For information only; not fashion advice'
+DISCLAIMER = 'Past fashion not indicative of future fashion. We hope. For information only; not fashion advice'
 PAIR = 5 # the percent of shares shorted that a pair of shorts stands for
 
 @_drawn
