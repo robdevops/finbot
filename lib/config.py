@@ -38,6 +38,7 @@ RENAMED = { # startup keys under a new name: the old still works (the new wins w
 	'telegramOutgoingToken': 'telegramSecretToken', # Telegram calls it the secret token
 }
 SERVICE_DATA_DIR = '/var/lib/private/finbot' # systemd's state directory of finbot.service (StateDirectory=)
+DARKMODES = ('off', 'on', 'auto') # darkmode's values: light charts, dark ones, or dark at night (lib/render.py)
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -306,6 +307,7 @@ class Settings:
 	cache: bool = True
 	cache_seconds: int = 21600
 	country_code: str = 'AU'
+	darkmode: str = 'off' # charts' theme: one of DARKMODES
 	demote_leveraged: bool = True
 	demote_volatile: bool = True
 	exchange_suffix: str = 'AX' # Yahoo's suffix for the local exchange: a bare ticker Yahoo does not know gets it
@@ -342,6 +344,7 @@ def setting_values(values):
 		'admin_only': r.blankable_words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
 		'country_code': lambda name, default: r.str(name, default).strip().upper(),
+		'darkmode': lambda name, default: r.choice(name, default, DARKMODES),
 		'hyperlinkProvider': lambda name, default: r.choice(name, default, ('google', 'yahoo')),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS),
 		'timezone': r.zone}
