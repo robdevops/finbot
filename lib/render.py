@@ -577,7 +577,7 @@ def draw_bars(chart):
 	_heading(canvas, chart.title, subtitle)
 	return canvas.png()
 
-DISCLAIMER = 'Past fashion not indicative of future fashion. We hope. For information only; not fashion advice'
+DISCLAIMER = 'Past fashion not indicative of future fashion. We hope. For information only; not fashion advice.'
 PAIR = 5 # the percent of shares shorted that a pair of shorts stands for
 
 @_drawn
@@ -619,14 +619,14 @@ def draw_shorts(chart):
 
 	top, bottom = 150, 680 # just below the subtitle, clear of the sea
 	n = len(rows)
-	row_h = min((bottom - top) / n, 100)
+	row_h = min((bottom - top) / n, 92)
 	bottom = top + row_h * n
 	size = max(6, min(18, row_h * 0.5 * 72 / 200 * 2))
 	label_w = max(canvas.measure(str(label), size, bold=True) for label, _ in rows)
 	x0 = 24 + label_w + 16 # the panel sits a little left of the title's margin
-	room = 24 + 120 # right-hand text: the percent
+	room = 24 + 280 # right-hand text: the percent, and clear of the sun
 	max_icons = max(math.ceil(max(v for _, v in rows if v is not None) / PAIR), 1)
-	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 108)
+	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 100)
 	icon_h = icon_w / 1.1
 	lw = max(0.6, min(1.6, icon_w / 45))
 
