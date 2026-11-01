@@ -34,8 +34,8 @@ MAX_BODY = 1 << 20 # bytes in a request body, at most: an update from Telegram o
 WEBHOOKS = (telegram_webhook.WEBHOOK, slack_webhook.WEBHOOK, discord_webhook.WEBHOOK) # HTTP: each network posts
 LISTENERS = (telegram_longpolling.TelegramPoll, slack_websocket.SlackSocket, discord_websocket.DiscordGateway) # pull
 SECRET_HEADERS = {name for hook in WEBHOOKS for name in hook.SECRET_HEADERS} # redacted where headers are logged
-STARTS = ((telegram_common, 'telegramBotToken'), (discord_common, 'discordBotToken')) # each network set up as finbot
-# starts (start: Telegram's webhook and menu, Discord's slash commands), where finbot.env has its key
+STARTS = ((telegram_common, 'TELEGRAM_BOT_TOKEN'), (discord_common, 'DISCORD_BOT_TOKEN')) # each network set up as
+# finbot starts (start: Telegram's webhook and menu, Discord's slash commands), where finbot.env has its key
 _updates_seen = inbound.Recent() # (service, update id) of the last updates taken: a resent one may race its first copy
 DOUBLED = 1 # seconds in which the same message, from the same person in the same chat, is taken once
 _said = inbound.Recent() # (service, chat, user, text) of the messages taken lately
@@ -78,7 +78,7 @@ def main(environ, start_response):
 	"""WSGI entry point. Never lets an exception escape. A failure handling an authenticated request is logged as an
 	error report (report_error) and answered 200, so the service does not retry it into the chat again; before
 	authentication, as a failed request, with a 500. Either names the network, not the path: a webhook's path is a
-	secret (telegramOutgoingWebhook, slackOutgoingWebhook)."""
+	secret (TELEGRAM_OUTGOING_WEBHOOK, SLACK_OUTGOING_WEBHOOK)."""
 	try:
 		return handle(environ, start_response)
 	except Exception as e:
@@ -274,7 +274,7 @@ def http_server():
 	if not any(hook.path() for hook in WEBHOOKS):
 		return None
 	import waitress
-	return waitress.create_server(main, host=config.env.ip, port=config.env.port)
+	return waitress.create_server(main, host=config.env.IP, port=config.env.PORT)
 
 if __name__ == '__main__':
 	# threads log at once: each line goes out whole
@@ -305,7 +305,7 @@ if __name__ == '__main__':
 		log.error(e)
 		sys.exit(1)
 	if server:
-		log.info(f'Opening socket on http://{config.env.ip}:{server.effective_port}')
+		log.info(f'Opening socket on http://{config.env.IP}:{server.effective_port}')
 	else:
 		log.info('No webhook is set: finbot takes no HTTP requests')
 	turned_off = {hook.service for hook in unsecured()}
@@ -316,7 +316,7 @@ if __name__ == '__main__':
 			except Exception as e:
 				log.error('ERROR', delivery.error_line(e, network.READER.service))
 				sys.exit(1)
-	if config.env.telegramBotToken: # stale DM keyboards, in the background
+	if config.env.TELEGRAM_BOT_TOKEN: # stale DM keyboards, in the background
 		threading.Thread(target=telegram_common.refresh_keyboards, args=(worker.KEYBOARD,), daemon=True).start()
 	threading.Thread(target=jobs.current.run_forever, daemon=True).start() # the scheduled reports, formerly cron jobs
 	for listener in listeners(): # the networks without a webhook: finbot fetches their updates

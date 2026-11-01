@@ -1,4 +1,4 @@
-"""Slack's Socket Mode, its pull mode (no slackOutgoingWebhook): a WebSocket that the app-level token opens, whose
+"""Slack's Socket Mode, its pull mode (no SLACK_OUTGOING_WEBHOOK): a WebSocket that the app-level token opens, whose
 envelopes carry what Slack would post to the Request URL, for the reader (slack_common.READER)."""
 import json
 
@@ -9,13 +9,13 @@ from lib import slack_common
 
 class SlackSocket(pull.SocketListener):
 	"""Slack's Socket Mode: a WebSocket to the URL that apps.connections.open gives for the app-level token
-	(slackAppToken). Each event, button press or slash command comes in an envelope, acked at once, before anything
+	(SLACK_APP_TOKEN). Each event, button press or slash command comes in an envelope, acked at once, before anything
 	else (Slack sends again what is not acked within 3 seconds); inside it is what Slack would post to
-	slackOutgoingWebhook. Slack closes a socket now and then, saying so first (disconnect), and another is opened at
+	SLACK_OUTGOING_WEBHOOK. Slack closes a socket now and then, saying so first (disconnect), and another is opened at
 	once."""
 	network = slack_common.READER
-	TOKENS = ('slackBotToken', 'slackAppToken')
-	WEBHOOK_URL = 'slackOutgoingWebhook'
+	TOKENS = ('SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN')
+	WEBHOOK_URL = 'SLACK_OUTGOING_WEBHOOK'
 	MODE = 'Socket Mode'
 	PING_SECONDS = 30 # silence this long sends a ping; as long again after it, and the socket is taken for dead
 	TAKEN = ('events_api', 'interactive', 'slash_commands') # the envelopes whose payload goes to the reader

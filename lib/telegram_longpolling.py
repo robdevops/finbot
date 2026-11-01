@@ -1,4 +1,4 @@
-"""Telegram's long polling, its pull mode (no telegramOutgoingWebhook): finbot asks for its updates (getUpdates) again
+"""Telegram's long polling, its pull mode (no TELEGRAM_OUTGOING_WEBHOOK): finbot asks for its updates (getUpdates) again
 and again, and hands each to the reader (telegram_common.READER) as the webhook would."""
 from lib import net
 from lib import pull
@@ -10,8 +10,8 @@ class TelegramPoll(pull.Listener):
 	passed, asking for those after the last one taken (offset), which also tells Telegram that one arrived. No webhook
 	may be set meanwhile: telegram_common.start deletes it as finbot starts."""
 	network = telegram_common.READER
-	TOKENS = ('telegramBotToken',)
-	WEBHOOK_URL = 'telegramOutgoingWebhook'
+	TOKENS = ('TELEGRAM_BOT_TOKEN',)
+	WEBHOOK_URL = 'TELEGRAM_OUTGOING_WEBHOOK'
 	MODE = 'long polling for updates'
 	POLL_SECONDS = 50 # how long Telegram may hold a getUpdates open
 	READ_SECONDS = 65 # the request's own timeout for the answer: longer than Telegram holds it

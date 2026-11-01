@@ -1,5 +1,5 @@
-"""Discord's gateway, its pull mode (no discordOutgoingWebhook): a WebSocket (pull.WebSocket) that the bot identifies on
-with its token, whose events read as the interactions endpoint's, for the reader (discord_common.READER); an
+"""Discord's gateway, its pull mode (no DISCORD_OUTGOING_WEBHOOK): a WebSocket (pull.WebSocket) that the bot identifies
+on with its token, whose events read as the interactions endpoint's, for the reader (discord_common.READER); an
 interaction's answer is posted to its callback."""
 import json
 import random
@@ -34,8 +34,8 @@ class DiscordGateway(pull.SocketListener):
 	INTERACTION_CREATE events, each in a thread of its own, so that the heartbeat never waits on finbot; the gateway
 	takes no answers: an interaction's goes to its callback over REST."""
 	network = discord_common.READER
-	TOKENS = ('discordBotToken',)
-	WEBHOOK_URL = 'discordOutgoingWebhook'
+	TOKENS = ('DISCORD_BOT_TOKEN',)
+	WEBHOOK_URL = 'DISCORD_OUTGOING_WEBHOOK'
 	MODE = 'gateway'
 	SOCKET = 'the gateway'
 	CLOSE_CODE = 4000 # not 1000, which would end the session
@@ -126,12 +126,12 @@ class DiscordGateway(pull.SocketListener):
 
 	def identify(self):
 		"""IDENTIFY: a new session, for the bot token and the intents."""
-		return {'op': 2, 'd': {'token': config.env.discordBotToken, 'intents': INTENTS,
+		return {'op': 2, 'd': {'token': config.env.DISCORD_BOT_TOKEN, 'intents': INTENTS,
 			'properties': {'os': sys.platform, 'browser': 'finbot', 'device': 'finbot'}}}
 
 	def resume(self):
 		"""RESUME: the session READY gave, from the last event seen."""
-		return {'op': 6, 'd': {'token': config.env.discordBotToken, 'session_id': self.session[0],
+		return {'op': 6, 'd': {'token': config.env.DISCORD_BOT_TOKEN, 'session_id': self.session[0],
 			'seq': self.sequence}}
 
 	def beat(self, connection):

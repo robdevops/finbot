@@ -226,7 +226,7 @@ class TelegramSending(FinbotCase):
 		raises. A preload whose upload fails stops."""
 		slept = []
 		self.patch(net.time, 'sleep', slept.append)
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 		def telegram_limit(wait):
 			"""Telegram's refusal for its rate limit, asking for wait seconds."""
 			return Resp({'ok': False, 'error_code': 429, 'description': f'Too Many Requests: retry after {wait}',
@@ -336,7 +336,7 @@ class TelegramSending(FinbotCase):
 		cache setting off."""
 		sent = self.photos()
 		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
-		self.env(telegramBotToken='Y')
+		self.env(TELEGRAM_BOT_TOKEN='Y')
 		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
 		self.settings(cache=False)
 		telegram_common.TelegramBot('5').post_chart(b'png', 'caption')
@@ -370,7 +370,7 @@ class TelegramSending(FinbotCase):
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		for kind in (telegram_common.TelegramBot, slack_common.SlackBot, discord_common.DiscordBot):
 			self.patch(kind, 'post_text', lambda dest, text, buttons=None: sent.append((dest.name, text)))
-		self.env(slackBotToken='xoxb-1', discordBotToken='x')
+		self.env(SLACK_BOT_TOKEN='xoxb-1', DISCORD_BOT_TOKEN='x')
 
 		error = RuntimeError("404 for ZZ at https://x/?a=1&crumb=abc; '<' not supported between <urllib3.connection>")
 		with contextlib.redirect_stderr(io.StringIO()):
@@ -439,7 +439,7 @@ class ChartDelivery(FinbotCase):
 
 	def test_every_bot_takes_charts(self):
 		"""Every network's bot takes charts, whichever way its updates arrive, and no setting holds them back."""
-		self.env(slackBotToken='', slackAppToken='', slackOutgoingWebhook='', telegramOutgoingWebhook='')
+		self.env(SLACK_BOT_TOKEN='', SLACK_APP_TOKEN='', SLACK_OUTGOING_WEBHOOK='', TELEGRAM_OUTGOING_WEBHOOK='')
 		for kind in (telegram_common.TelegramBot, slack_common.SlackBot, discord_common.DiscordBot):
 			with self.subTest(kind=kind.__name__):
 				self.assertTrue(kind('1').takes_charts)
@@ -459,7 +459,7 @@ class ChartDelivery(FinbotCase):
 	def test_slack_replies_upload_their_charts(self):
 		"""A Slack reply whose chart has no buttons uploads it in three steps (bot token), the report as its message,
 		with no text copy (a chart with buttons goes in a Block Kit message: SlackButtons)."""
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 
 		for cmd, heading in (('.beta', '*Beta over 1.5'), ('.peg', '*')):
 			with self.subTest(cmd=cmd):
@@ -485,7 +485,7 @@ class ChartDelivery(FinbotCase):
 	def test_a_slack_upload_that_fails_goes_out_as_text(self):
 		"""A Slack upload failing at any step, then again with its heading alone, goes as text, but not on a last-step
 		timeout, when it may have arrived."""
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
 
 		good = self.upload_steps()
@@ -507,7 +507,7 @@ class ChartDelivery(FinbotCase):
 
 	def test_scheduled_reports_carry_their_charts_on_every_network(self):
 		"""A scheduled report's chart goes to the job's chat on every network, as its bot."""
-		self.env(slackBotToken='xoxb-test', discordBotToken='x')
+		self.env(SLACK_BOT_TOKEN='xoxb-test', DISCORD_BOT_TOKEN='x')
 		sent = []
 		self.patch(transports.Transport, 'chart', lambda dest, image, caption, buttons=None:
 			sent.append((dest.name, 'chart')) or {'ok': True})
@@ -524,7 +524,7 @@ class ChartDelivery(FinbotCase):
 		"""graph=False means no charts, as doc/configuration.md says; it held back only the price-line charts."""
 		self.settings(graph=False)
 
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 
 		posts = []
 		self.patch(net, 'post', lambda url, **k: posts.append(url) or Resp({'ok': True, 'result': True}))
@@ -644,7 +644,7 @@ class DiscordSending(FinbotCase):
 	def setUp(self):
 		"""Discord as the only destination, sent through the real path, its calls recorded."""
 		super().setUp()
-		self.env(discordBotToken='x')
+		self.env(DISCORD_BOT_TOKEN='x')
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.calls = []
@@ -694,7 +694,7 @@ class SlackSending(FinbotCase):
 
 	def test_link_previews_are_turned_off_in_the_body(self):
 		"""Link previews are turned off in the body, where Slack reads them."""
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 
 		with contextlib.redirect_stderr(io.StringIO()):
 			slack_common.SlackBot('C1').post_text('hi')
@@ -704,7 +704,7 @@ class SlackSending(FinbotCase):
 
 	def test_a_reply_slack_refuses_is_logged_as_failed(self):
 		"""Slack refuses with HTTP 200 and ok false (the bot is not in the channel, say): a failure, logged as one."""
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 		self.patch(net, 'post', lambda url, **kwargs: Resp({'ok': False, 'error': 'not_in_channel'}))
 		chat = slack_common.SlackBot('C1')
 		with contextlib.redirect_stderr(io.StringIO()) as err:
@@ -714,20 +714,20 @@ class SlackSending(FinbotCase):
 
 	def test_a_reply_without_a_bot_token_is_logged_not_sent(self):
 		"""A Slack reply without the bot token is logged, once each, and not sent."""
-		self.env(slackBotToken=False)
+		self.env(SLACK_BOT_TOKEN=False)
 
 		err = io.StringIO()
 		with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
 			for cmd in ('.help', '.movers', '.compare T1 T2'):
 				worker.process_request(inbound.Message('slack', 'C1', '<@U1>', cmd, BOT))
 		self.assertEqual((self.posts, self.errors), ([], []))
-		refusal = 'Slack message to C1 failed: Slack chat.postMessage: needs slackBotToken in finbot.env'
+		refusal = 'Slack message to C1 failed: Slack chat.postMessage: needs SLACK_BOT_TOKEN in finbot.env'
 		self.assertEqual(err.getvalue().count(refusal), 3)
 
 	def test_a_command_at_work_shows_an_hourglass_on_its_message(self):
 		"""While a command works, ⏳ is on the message it answers (Slack has no typing notice for bots); it comes off
 		once the answer is out, so the answer does not wait for it. Only with that message."""
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 		self.patch(transports.Transport, 'TYPING', (0, 7, 10))
 		added = threading.Event()
 		def post(url, **kwargs):
@@ -748,7 +748,7 @@ class SlackSending(FinbotCase):
 
 	def test_an_hourglass_slack_refuses_is_tried_once(self):
 		"""⏳ that Slack refuses (a missing scope) is logged and not tried again, and nothing is taken off."""
-		self.env(slackBotToken='xoxb-test')
+		self.env(SLACK_BOT_TOKEN='xoxb-test')
 		refuse = Resp({'ok': False, 'error': 'missing_scope'})
 		self.patch(net, 'post', lambda url, **kwargs: self.posts.append((url, kwargs)) or refuse)
 		chat = slack_common.SlackBot('C1', '1.2')
@@ -761,10 +761,10 @@ class SlackSending(FinbotCase):
 
 	def test_the_slack_api_says_what_is_missing(self):
 		"""slack_api without the bot token says so (it used to be a TypeError)."""
-		self.env(slackBotToken=False)
+		self.env(SLACK_BOT_TOKEN=False)
 
 		with self.assertRaisesRegex(RuntimeError,
-				'Slack files.getUploadURLExternal: needs slackBotToken in finbot.env'):
+				'Slack files.getUploadURLExternal: needs SLACK_BOT_TOKEN in finbot.env'):
 			slack_common.call('files.getUploadURLExternal', filename='chart.png', length=1) # it was a TypeError
 		self.assertEqual(self.posts, [])
 
@@ -854,7 +854,7 @@ class SlackButtons(FinbotCase):
 		super().setUp()
 		self.patch(transports.Transport, 'text', REAL_TEXT)
 		self.patch(transports.Transport, 'chart', REAL_CHART)
-		self.env(slackBotToken='xoxb-test', slackOutgoingWebhook='https://example.com/slack')
+		self.env(SLACK_BOT_TOKEN='xoxb-test', SLACK_OUTGOING_WEBHOOK='https://example.com/slack')
 		self.posts, self.refusals, self.waits = [], {}, []
 		self.patch(slack_common.time, 'sleep', self.waits.append)
 		def post(url, **kwargs):
@@ -1060,9 +1060,9 @@ class SlackButtons(FinbotCase):
 		self.assertEqual((self.waits, self.sent, self.errors), ([1, 2, 4], [], []))
 
 	def test_in_socket_mode_a_chart_has_its_buttons_too(self):
-		"""In Socket Mode (no slackOutgoingWebhook) a press reaches finbot over the socket, so a chart has its buttons
+		"""In Socket Mode (no SLACK_OUTGOING_WEBHOOK) a press reaches finbot over the socket, so a chart has its buttons
 		as in http mode."""
-		self.env(slackOutgoingWebhook='', slackAppToken='xapp-1')
+		self.env(SLACK_OUTGOING_WEBHOOK='', SLACK_APP_TOKEN='xapp-1')
 		worker.process_request(inbound.Message('slack', 'C1', '<@U1>', '.movers', BOT))
 		self.assertEqual(self.calls(), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal',
 			'chat.postMessage'])
@@ -1106,13 +1106,13 @@ class EveryNetworkAndMode(FinbotCase):
 	run list its buttons, a command shows the network's notice that finbot is at work, and the reply goes to the chat
 	that asked."""
 	MODES = {
-		('telegram', 'http'): {'telegramOutgoingWebhook': 'https://example.com/telegram'},
-		('telegram', 'pull'): {'telegramOutgoingWebhook': ''},
-		('slack', 'http'): {'slackBotToken': 'xoxb-1', 'slackOutgoingWebhook': 'https://example.com/slack'},
-		('slack', 'pull'): {'slackBotToken': 'xoxb-1', 'slackAppToken': 'xapp-1', 'slackOutgoingWebhook': ''},
-		('discord', 'http'): {'discordBotToken': 'x', 'discordOutgoingWebhook': 'https://example.com/discord',
-			'discordPublicKey': 'ab' * 32},
-		('discord', 'pull'): {'discordBotToken': 'x', 'discordOutgoingWebhook': ''},
+		('telegram', 'http'): {'TELEGRAM_OUTGOING_WEBHOOK': 'https://example.com/telegram'},
+		('telegram', 'pull'): {'TELEGRAM_OUTGOING_WEBHOOK': ''},
+		('slack', 'http'): {'SLACK_BOT_TOKEN': 'xoxb-1', 'SLACK_OUTGOING_WEBHOOK': 'https://example.com/slack'},
+		('slack', 'pull'): {'SLACK_BOT_TOKEN': 'xoxb-1', 'SLACK_APP_TOKEN': 'xapp-1', 'SLACK_OUTGOING_WEBHOOK': ''},
+		('discord', 'http'): {'DISCORD_BOT_TOKEN': 'x', 'DISCORD_OUTGOING_WEBHOOK': 'https://example.com/discord',
+			'DISCORD_PUBLIC_KEY': 'ab' * 32},
+		('discord', 'pull'): {'DISCORD_BOT_TOKEN': 'x', 'DISCORD_OUTGOING_WEBHOOK': ''},
 	}
 	CHATS = {'telegram': ('-1001', '55'), 'slack': ('C1', 'D1'), 'discord': ('77', '88')} # a channel, then a DM
 
@@ -1245,7 +1245,7 @@ class Chats(FinbotCase):
 		not go again as text."""
 		self.patch(transports.Transport, 'chart', REAL_CHART)
 		self.patch(render, 'draw', lambda chart: io.BytesIO(b'png'))
-		self.env(discordBotToken='x')
+		self.env(DISCORD_BOT_TOKEN='x')
 		self.patch(net, 'request', lambda method, url, **kwargs: Resp(None, 204))
 		with contextlib.redirect_stderr(io.StringIO()):
 			answers = delivery.deliver(discord_common.DiscordBot('77'), delivery.Report(['Heading', 'a line'], CHART))

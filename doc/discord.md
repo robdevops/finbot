@@ -14,8 +14,8 @@ The bot does the same either way. What differs is how it hears from Discord:
 | Listens on the internet | No: finbot opens the connection to Discord | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Commands | Slash commands (`/price`), and messages (`.price`, `@finbot price`) | Slash commands (`/price`): Discord posts no messages |
 | Python modules | `websocket-client` (Debian: `python3-websocket`) | `PyNaCl` and `waitress` (Debian: `python3-nacl`, `python3-waitress`) |
-| Security | Nothing arrives unasked: the gateway connection is one finbot opened with the bot token (`discordBotToken`) | Discord's signature on every request, checked with the app's Public Key (`discordPublicKey`). Without it, finbot turns Discord off |
-| `finbot.env` keys | `discordBotToken` | `discordBotToken`, `discordOutgoingWebhook` and `discordPublicKey` |
+| Security | Nothing arrives unasked: the gateway connection is one finbot opened with the bot token (`DISCORD_BOT_TOKEN`) | Discord's signature on every request, checked with the app's Public Key (`DISCORD_PUBLIC_KEY`). Without it, finbot turns Discord off |
+| `finbot.env` keys | `DISCORD_BOT_TOKEN` | `DISCORD_BOT_TOKEN`, `DISCORD_OUTGOING_WEBHOOK` and `DISCORD_PUBLIC_KEY` |
 
 In both: the scheduled reports with their charts; period buttons under charts and the buttons of the `/jobs` menu,
 which redraw their message in place; linked tickers, without link previews and without pinging anyone;
@@ -23,7 +23,7 @@ and direct messages with the bot. A command in a message shows "finbot is typing
 shows Discord's "finbot is thinking…" until its answer takes its place. A press that is refused (a button of an admins'
 command pressed by someone else, or a ninth ticker) is told to the presser in a message only they see.
 
-`discordOutgoingWebhook` chooses the mode: set, push mode; empty, gateway API mode. Discord sends the slash commands
+`DISCORD_OUTGOING_WEBHOOK` chooses the mode: set, push mode; empty, gateway API mode. Discord sends the slash commands
 and button presses to the app's _Interactions Endpoint URL_ while it is set, and over the gateway API while it is
 empty, so change both, and restart finbot, to switch.
 
@@ -32,7 +32,7 @@ empty, so change both, and restart finbot, to switch.
 1. In the [Developer Portal](https://discord.com/developers/applications), choose _New Application_ and name it
    (finbot, say).
 2. Under _Bot_:
-   * _Reset Token_, and copy the token into `finbot.env` as `discordBotToken`.
+   * _Reset Token_, and copy the token into `finbot.env` as `DISCORD_BOT_TOKEN`.
    * Turn _Public Bot_ off, so that only you can add the bot to servers.
    * Turn _Message Content Intent_ on, for the bot to read `.price` and `@finbot price` in your channels. Without it,
      Discord refuses the connection, and the log says so.
@@ -42,18 +42,18 @@ empty, so change both, and restart finbot, to switch.
 4. Install the WebSocket module: `sudo apt install python3-websocket` (or `pip install websocket-client`; Docker and
    the Python quick start have it).
 5. Restart finbot (`sudo systemctl restart finbot`). As it starts, it registers the slash commands, which can take a
-   few minutes to show in Discord the first time, and the log says `discord: gateway (no discordOutgoingWebhook)`.
+   few minutes to show in Discord the first time, and the log says `discord: gateway (no DISCORD_OUTGOING_WEBHOOK)`.
 6. Send `/help` (or `.help`) in the channel, or in a direct message to the bot. Each channel has the default scheduled
    jobs, which `/jobs` changes ([Scheduling](scheduling.md)).
 
 ```
-discordBotToken=your-bot-token
+DISCORD_BOT_TOKEN=your-bot-token
 ```
 
 ## Push mode
 
 Discord posts the slash commands and button presses to finbot over HTTPS, each signed with the app's key. finbot
-listens on `http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a
+listens on `http://127.0.0.1:5000` (`IP` and `PORT` in `finbot.env`), so it needs a web server in front of it, on a
 domain name with a valid certificate. The bot shows as offline in Discord, as it keeps no connection to the gateway
 API.
 
@@ -78,7 +78,7 @@ API.
    ```
    Discord publishes no list of its addresses, so the signature on each request is what keeps strangers out: finbot
    refuses a request without a good one.
-4. In `finbot.env`, set `discordOutgoingWebhook` to the URL Discord should post to, and `discordPublicKey` to the app's
+4. In `finbot.env`, set `DISCORD_OUTGOING_WEBHOOK` to the URL Discord should post to, and `DISCORD_PUBLIC_KEY` to the app's
    _General Information > Public Key_ (64 hex digits; without it finbot turns Discord off, and says so in the log).
    Restart finbot, so that it can answer Discord's check in the next step.
 5. In the Developer Portal, set _General Information > Interactions Endpoint URL_ to the same URL, and _Save Changes_.
@@ -87,9 +87,9 @@ API.
 6. Send `/help` in the channel, or in a direct message to the bot.
 
 ```
-discordBotToken=your-bot-token
-discordOutgoingWebhook=https://www.example.com:8443/discord
-discordPublicKey=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+DISCORD_BOT_TOKEN=your-bot-token
+DISCORD_OUTGOING_WEBHOOK=https://www.example.com:8443/discord
+DISCORD_PUBLIC_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ```
 
 ## Slash commands

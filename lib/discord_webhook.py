@@ -1,4 +1,4 @@
-"""Discord's interactions endpoint, its HTTP mode (discordOutgoingWebhook set): Discord posts each interaction to
+"""Discord's interactions endpoint, its HTTP mode (DISCORD_OUTGOING_WEBHOOK set): Discord posts each interaction to
 finbot's URL, signed with the app's Ed25519 key, for the reader (discord_common.READER), and takes the answer as the
 HTTP response."""
 import re
@@ -9,19 +9,19 @@ from lib import inbound
 
 
 class DiscordInteractions(inbound.Webhook):
-	"""Discord posting interactions to discordOutgoingWebhook (the app's Interactions Endpoint URL), each signed with
-	the app's Ed25519 key, whose public half is discordPublicKey."""
-	URL = 'discordOutgoingWebhook'
+	"""Discord posting interactions to DISCORD_OUTGOING_WEBHOOK (the app's Interactions Endpoint URL), each signed with
+	the app's Ed25519 key, whose public half is DISCORD_PUBLIC_KEY."""
+	URL = 'DISCORD_OUTGOING_WEBHOOK'
 	REFUSED = inbound.UNAUTHORIZED # Discord checks that a bad signature gets a 401, and drops a URL answering otherwise
 	SECRET_FIELDS = ('token',) # the interaction's token, with which anyone can answer it for 15 minutes
-	MISSING = "discordPublicKey (the app's, 64 hex digits)"
+	MISSING = "DISCORD_PUBLIC_KEY (the app's, 64 hex digits)"
 
 	def secured(self):
-		"""Whether discordPublicKey is a public key: 64 hex digits."""
-		return re.fullmatch(r'[0-9a-fA-F]{64}', config.env.discordPublicKey.strip()) is not None
+		"""Whether DISCORD_PUBLIC_KEY is a public key: 64 hex digits."""
+		return re.fullmatch(r'[0-9a-fA-F]{64}', config.env.DISCORD_PUBLIC_KEY.strip()) is not None
 
 	def refuse(self, environ, body, update):
-		"""The request must carry Discord's signature of its timestamp and body under discordPublicKey, checked with
+		"""The request must carry Discord's signature of its timestamp and body under DISCORD_PUBLIC_KEY, checked with
 		PyNaCl (imported here only: Discord's http mode is the one thing that needs it)."""
 		signature = environ.get('HTTP_X_SIGNATURE_ED25519', '')
 		timestamp = environ.get('HTTP_X_SIGNATURE_TIMESTAMP', '')
@@ -30,11 +30,11 @@ class DiscordInteractions(inbound.Webhook):
 		from nacl.exceptions import BadSignatureError
 		from nacl.signing import VerifyKey
 		try:
-			VerifyKey(bytes.fromhex(config.env.discordPublicKey.strip())).verify(timestamp.encode() + body,
+			VerifyKey(bytes.fromhex(config.env.DISCORD_PUBLIC_KEY.strip())).verify(timestamp.encode() + body,
 				bytes.fromhex(signature))
 		except (BadSignatureError, ValueError):
 			return ("Discord signature incorrect (expected once or twice when the Interactions Endpoint URL is saved: "
-				"Discord sends a bad one on purpose to see a 401; if saving fails, discordPublicKey is not General "
+				"Discord sends a bad one on purpose to see a 401; if saving fails, DISCORD_PUBLIC_KEY is not General "
 				"Information > Public Key)")
 		return None
 

@@ -63,7 +63,7 @@ def _token(refused=None):
 				kept['created_at'] + kept['expires_in'] - time.time() > TOKEN_MARGIN):
 			return kept['access_token']
 		data = _request('oauth2/token', 'auth', 'access_token', data={'grant_type': 'client_credentials',
-			'client_id': config.env.sharesight_client_id, 'client_secret': config.env.sharesight_client_secret,
+			'client_id': config.env.SHARESIGHT_CLIENT_ID, 'client_secret': config.env.SHARESIGHT_CLIENT_SECRET,
 			'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob'})
 		cache.write(TOKEN, data)
 		return data['access_token']
@@ -181,7 +181,7 @@ class NotSetUp(answer.Answer, RuntimeError):
 
 def configured():
 	"""Whether Sharesight is set up, its keys in finbot.env: without, a chat's reports cover its watchlist alone."""
-	return bool(config.env.sharesight_client_id)
+	return bool(config.env.SHARESIGHT_CLIENT_ID)
 
 
 class PortfolioNotFound(answer.Answer, LookupError):

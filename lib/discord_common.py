@@ -1,5 +1,5 @@
 """Discord, whichever way its updates arrive (the gateway, discord_websocket; or the interactions endpoint,
-discord_webhook): its REST API as the bot (discordBotToken), with calls that wait out Discord's rate limits and the
+discord_webhook): its REST API as the bot (DISCORD_BOT_TOKEN), with calls that wait out Discord's rate limits and the
 slash commands registered as finbot starts; the reader of its interactions and messages (Discord, READER); and the bot
 that posts into its channels and DMs (DiscordBot)."""
 import json
@@ -30,7 +30,7 @@ def call(method, path, **kwargs):
 	"""A REST call as the bot, its User-Agent naming finbot's commit: Discord's answer as JSON, or None when it is
 	empty; a rate limit waited out once, as long as Discord asks (net.patiently). Raises RuntimeError with Discord's
 	reason when it refuses, or a requests error."""
-	headers = {'Authorization': 'Bot ' + config.env.discordBotToken,
+	headers = {'Authorization': 'Bot ' + config.env.DISCORD_BOT_TOKEN,
 		'User-Agent': USER_AGENT.format(config.git_version()), **kwargs.pop('headers', {})}
 	def send():
 		"""The request, a rate limit waited out once."""
@@ -217,7 +217,7 @@ class Discord(inbound.Network):
 
 
 class DiscordBot(transports.Transport):
-	"""A Discord channel or DM, as the bot (discordBotToken): no link previews, no pings, charts attached, buttons as
+	"""A Discord channel or DM, as the bot (DISCORD_BOT_TOKEN): no link previews, no pings, charts attached, buttons as
 	components, edits in place, the typing notice. A slash command's first message replaces Discord's "thinking…" and
 	the rest follow it up, through its interaction; a pressed message is edited through the press's."""
 	name = 'discord'

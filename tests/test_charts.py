@@ -15,6 +15,19 @@ SKY = (0xff, 0xe6, 0x6d) # the shorts chart's yellow, and the deeper yellow of i
 RAY = (0xff, 0xd2, 0x3f)
 SHORTS_BG = (SKY, RAY)
 
+_settings = config.settings
+
+
+def setUpModule():
+	"""These tests check the dark charts' colours: darkmode on, as the module runs."""
+	config.settings = dataclasses.replace(config.settings, darkmode='on')
+
+
+def tearDownModule():
+	"""Put the settings back."""
+	config.settings = _settings
+
+
 MIXED = [('AAA', 42), ('BBB', 17), ('CCC', 3), ('', None), ('DDD', -5), ('EEE', -30)]
 
 
@@ -503,5 +516,48 @@ class BlankImage(unittest.TestCase):
 		self.assertTrue(hasattr(render.blank, '__wrapped__'), 'render.blank draws without the lock')
 
 
+class Themes(unittest.TestCase):
+	"""The darkmode setting: light charts (off), dark ones (on), and dark at night (auto)."""
+
+	def corner(self, mode, hour=12):
+		"""The background pixel of a price line drawn under darkmode `mode`, at this hour in the timezone setting."""
+		moment = datetime.datetime(2026, 11, 2, hour, tzinfo=datetime.timezone.utc)
+		fake = mock.Mock(wraps=datetime.datetime)
+		fake.now.side_effect = lambda zone=None: moment.astimezone(zone)
+		settings = dataclasses.replace(config.settings, darkmode=mode, timezone='UTC')
+		with mock.patch.object(config, 'settings', settings), mock.patch.object(render.datetime, 'datetime', fake):
+			return decode(uncached(line(price_rows()))).getpixel((0, 0))
+
+	def test_off_is_light_and_on_is_dark(self):
+		"""Off draws on white and on draws on the dark surface."""
+		self.assertEqual(self.corner('off'), (255, 255, 255))
+		self.assertEqual(self.corner('on'), BG)
+
+	def test_auto_follows_the_night(self):
+		"""Auto is dark from 18:00 to 06:00 and light between."""
+		self.assertEqual(self.corner('auto', 12), (255, 255, 255))
+		self.assertEqual(self.corner('auto', 23), BG)
+		self.assertEqual(self.corner('auto', 5), BG)
+		self.assertEqual(self.corner('auto', 6), (255, 255, 255))
+
+	def test_the_cache_keeps_a_chart_per_theme(self):
+		"""The same spec drawn light and dark are two images, not one read back."""
+		chart = line(price_rows())
+		with tempfile.TemporaryDirectory() as tmp, mock.patch.object(config, 'env',
+				dataclasses.replace(config.env, cache_dir=tmp)):
+			for mode, expected in (('off', (255, 255, 255)), ('on', BG), ('off', (255, 255, 255))):
+				with mock.patch.object(config, 'settings', dataclasses.replace(config.settings, darkmode=mode)):
+					self.assertEqual(decode(render.draw(chart)).getpixel((0, 0)), expected)
+
+	def test_every_chart_draws_light(self):
+		"""Each chart kind draws sanely on white."""
+		with mock.patch.object(config, 'settings', dataclasses.replace(config.settings, darkmode='off')):
+			for name in ('hbar_mixed', 'price_line', 'compare_lines', 'treemap'):
+				image = decode(CHARTS[name]())
+				self.assertEqual(image.getpixel((0, 0)), (255, 255, 255), name)
+				self.assertGreater(max(ImageStat.Stat(image).stddev), 5, name)
+
+
 if __name__ == '__main__':
 	unittest.main()
+

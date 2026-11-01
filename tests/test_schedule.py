@@ -307,7 +307,7 @@ class DirectMessages(FinbotCase):
 	def test_a_chat_seen_says_whether_it_is_a_direct_message(self):
 		"""At a chat's first command it starts with its default jobs off where it is a direct Discord's update
 		says so, Telegram's chat id does."""
-		self.env(discordBotToken='x')
+		self.env(DISCORD_BOT_TOKEN='x')
 		s = jobs.Scheduler(clock=lambda: OCTOBER)
 		with contextlib.redirect_stderr(io.StringIO()):
 			s.load()

@@ -26,13 +26,14 @@ class Tables(unittest.TestCase):
 		"""Startup and setting keys do not overlap, and each startup key is read into Env as its field's type says (the
 		data dir from DATA_DIR): a key is a field, so none can be listed and never read."""
 		self.assertEqual(set(config.STARTUP_KEYS) & set(config.SETTING_KEYS), set())
-		given = {key: '7' if key in ('port', 'scheduler_catchup') else f'{key}-value' for key in config.STARTUP_KEYS}
+		given = {key: '7' if key in ('PORT', 'SCHEDULER_CATCHUP') else f'{key}-value'
+			for key in config.STARTUP_KEYS}
 		env = config.startup_values(lambda name, default=None: given.get(name, default))
 		self.assertEqual({key: getattr(env, key) for key in config.STARTUP_KEYS if key != 'DATA_DIR'},
 			{key: 7 if value == '7' else value for key, value in given.items() if key != 'DATA_DIR'})
 		self.assertEqual((env.data_dir, env.cache_dir), (str(REPO / 'DATA_DIR-value'),
 			str(REPO / 'DATA_DIR-value' / 'cache')))
-		self.assertEqual(env.telegram_api, 'https://api.telegram.org/bottelegramBotToken-value/')
+		self.assertEqual(env.telegram_api, 'https://api.telegram.org/botTELEGRAM_BOT_TOKEN-value/')
 
 	def test_unset_settings_take_their_defaults(self):
 		"""An unset setting takes its field's default, as it is: reading tidies nothing away."""
@@ -85,7 +86,7 @@ class Parsing(unittest.TestCase):
 
 	def test_a_startup_key_in_settings_says_where_it_belongs(self):
 		"""A startup key in settings.conf is sent to finbot.env, without printing its value."""
-		errors = self.errors('slackOutgoingWebhook=https://x\nip=0.0.0.0\nport=5\nscheduler_catchup=3\n')
+		errors = self.errors('SLACK_OUTGOING_WEBHOOK=https://x\nIP=0.0.0.0\nPORT=5\nSCHEDULER_CATCHUP=3\n')
 		self.assertEqual(len(errors), 4)
 		for line in errors:
 			self.assertIn('belongs in finbot.env (a change needs a restart)', line)
@@ -103,7 +104,7 @@ class Parsing(unittest.TestCase):
 
 	def test_every_problem_is_reported_not_just_the_first(self):
 		"""Every problem in the file is reported at once."""
-		self.assertEqual(len(self.errors('futur_days=1\nport=1\n[x]\n')), 3)
+		self.assertEqual(len(self.errors('futur_days=1\nPORT=1\n[x]\n')), 3)
 
 	def test_invalid_values_are_named(self):
 		"""A value of the wrong type is reported with its key and value."""
@@ -176,15 +177,15 @@ class Parsing(unittest.TestCase):
 		self.assertEqual(config.retired_notes(values), notes)
 		self.assertEqual(check_config.notes(path), config.retired_notes(values))
 		startup = Path(common.temp_dir(self), 'finbot.env')
-		startup.write_text('slack_webhook=https://hooks.slack.com/services/x\nport=80\n')
+		startup.write_text('slack_webhook=https://hooks.slack.com/services/x\nPORT=80\n')
 		self.assertEqual(check_config.check(startup, path), [])
 		self.assertEqual(check_config.notes(path, startup)[0], "slack_webhook in finbot.env does nothing any more:"
-			" each chat's jobs (/jobs) post there as the bot (slackBotToken); delete the line")
+			" each chat's jobs (/jobs) post there as the bot (SLACK_BOT_TOKEN); delete the line")
 		with mock.patch.dict(os.environ, {'discord_webhook': 'https://discord.com/api/webhooks/1/x',
 				'telegramChatID': '-1001'}):
 			report = config.startup_report()
 		self.assertIn("discord_webhook in finbot.env does nothing any more: each chat's jobs (/jobs) post there as"
-			' the bot (discordBotToken); delete the line', report)
+			' the bot (DISCORD_BOT_TOKEN); delete the line', report)
 		self.assertIn('telegramChatID in finbot.env does nothing any more: each chat has its own jobs (/jobs)',
 			'\n'.join(report)) # there are no home chats
 
@@ -206,15 +207,15 @@ class Parsing(unittest.TestCase):
 	def test_startup_file_linting(self):
 		"""util/check_config.py reports bad lines in finbot.env first, then bad values, and nothing for a good file."""
 		path = Path(common.temp_dir(self), 'finbot.env')
-		path.write_text('ip=1.2.3.4\nfuture_days=3\nslackBotTokn=x\nport=http\n')
+		path.write_text('IP=1.2.3.4\nfuture_days=3\nSLACK_BOT_TOKN=x\nPORT=http\n')
 		problems = check_config.check(path, Path(common.temp_dir(self), 'none'))
 		self.assertEqual(len(problems), 2) # the two bad lines; the bad value is only found once the lines are valid
 		self.assertIn('future_days belongs in settings.conf (it is reloadable)', problems[0])
-		self.assertIn('unknown key slackBotTokn (did you mean slackBotToken?)', problems[1])
-		path.write_text('port=http\n')
+		self.assertIn('unknown key SLACK_BOT_TOKN (did you mean SLACK_BOT_TOKEN?)', problems[1])
+		path.write_text('PORT=http\n')
 		nowhere = Path(common.temp_dir(self), 'none')
-		self.assertIn("port='http' is not a whole number", check_config.check(path, nowhere)[0])
-		path.write_text('port=80\n')
+		self.assertIn("PORT='http' is not a whole number", check_config.check(path, nowhere)[0])
+		path.write_text('PORT=80\n')
 		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
 
 	def test_check_config_warns_when_finbot_env_is_not_600_root(self):
@@ -237,11 +238,11 @@ class Parsing(unittest.TestCase):
 		"""check_config shows what bot.py would warn about at start for the file it checks: here a Telegram token for
 		a webhook that is not set (pull mode)."""
 		path = Path(common.temp_dir(self), 'finbot.env')
-		path.write_text('telegramSecretToken=tok\n')
+		path.write_text('TELEGRAM_SECRET_TOKEN=tok\n')
 		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
-		self.assertEqual(check_config.warnings(path), ['telegramSecretToken is set but telegramOutgoingWebhook is'
+		self.assertEqual(check_config.warnings(path), ['TELEGRAM_SECRET_TOKEN is set but TELEGRAM_OUTGOING_WEBHOOK is'
 			' not: finbot fetches its Telegram updates (pull mode), and the token is not used'])
-		path.write_text('telegramSecretToken=tok\ntelegramOutgoingWebhook=https://example.com/t\n')
+		path.write_text('TELEGRAM_SECRET_TOKEN=tok\nTELEGRAM_OUTGOING_WEBHOOK=https://example.com/t\n')
 		self.assertEqual(check_config.warnings(path), [])
 
 
@@ -266,34 +267,6 @@ class ServiceDataDir(unittest.TestCase):
 		self.assertEqual(self.data_dir({'DATA_DIR': '/data', 'STATE_DIRECTORY': '/state'}.get, True, service), '/data')
 		self.assertEqual(self.data_dir({}.get, False, service), var)
 		self.assertEqual(self.data_dir({}.get, True, service + '/none'), var)
-
-
-class RenamedKeys(unittest.TestCase):
-	"""A startup key under a new name: the old one still works."""
-
-	def test_the_old_name_of_a_key_still_works_and_the_new_wins(self):
-		"""telegramOutgoingToken, set alone, gives telegramSecretToken its value; with both set the new one wins; a
-		finbot.env with the old line is valid, and says to rename it."""
-		old = config.startup_values({'telegramOutgoingToken': 'old'}.get)
-		both = config.startup_values({'telegramOutgoingToken': 'old', 'telegramSecretToken': 'new'}.get)
-		self.assertEqual((old.telegramSecretToken, both.telegramSecretToken,
-			config.startup_values({}.get).telegramSecretToken), ('old', 'new', ''))
-		self.assertNotIn('telegramOutgoingToken', config.STARTUP_KEYS)
-		path = Path(common.temp_dir(self), 'finbot.env')
-		path.write_text('telegramOutgoingToken=tok\n')
-		self.assertEqual(check_config.check(path, Path(common.temp_dir(self), 'none')), [])
-		self.assertEqual(check_config.notes(Path(common.temp_dir(self), 'none'), path),
-			['telegramOutgoingToken in finbot.env is now telegramSecretToken: it still works, but rename it'])
-		path.write_text('telegramOutgoingToken=tok\ntelegramSecretToken=new\n')
-		self.assertEqual(check_config.notes(Path(common.temp_dir(self), 'none'), path),
-			['telegramOutgoingToken in finbot.env is now telegramSecretToken: telegramSecretToken is set too, so this'
-			' line is ignored'])
-
-	def test_a_webhook_with_only_the_old_key_is_secured(self):
-		"""A finbot.env that still says telegramOutgoingToken has Telegram's webhook served as before."""
-		env = config.startup_values({'telegramOutgoingWebhook': 'https://example.com/t',
-			'telegramOutgoingToken': 'tok'}.get)
-		self.assertEqual(env.telegramSecretToken, 'tok')
 
 
 class Reload(unittest.TestCase):
@@ -362,7 +335,7 @@ class Reload(unittest.TestCase):
 		self.write('future_days=45\n')
 		config.reload()
 		for text in ('future_days=3\nprice_percent=abc\n', 'future_days=3\nfutur_days=4\n',
-				'future_days=3\nslackBotToken=x\n'):
+				'future_days=3\nSLACK_BOT_TOKEN=x\n'):
 			self.write(text)
 			with self.assertRaises(config.ConfigError):
 				config.reload()
@@ -440,7 +413,7 @@ class Startup(unittest.TestCase):
 		"""A bad value, unknown key, startup key or malformed line in settings.conf stops the start, saying why."""
 		for settings, expect in (('future_days=abc\n', "future_days='abc' is not a whole number"),
 			('futur_days=1\n', 'unknown key futur_days'),
-				('slackBotToken=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
+				('SLACK_BOT_TOKEN=x\n', 'belongs in finbot.env'), ('what\n', 'expected KEY=value')):
 			out = self.run_config(settings=settings)
 			self.assertEqual(out.returncode, 1, settings)
 			self.assertIn('ERROR config:', out.stderr)
@@ -478,9 +451,9 @@ class Startup(unittest.TestCase):
 
 	def test_a_bad_startup_value_refuses_to_start(self):
 		"""A bad value in finbot.env stops the start, saying which."""
-		out = self.run_config(port='http')
+		out = self.run_config(PORT='http')
 		self.assertEqual(out.returncode, 1)
-		self.assertIn("port='http' is not a whole number", out.stderr)
+		self.assertIn("PORT='http' is not a whole number", out.stderr)
 
 	def test_a_setting_in_the_environment_is_refused_by_the_bot(self):
 		"""A setting in the bot's environment (finbot.env) is refused; startup keys belong there."""
@@ -490,7 +463,7 @@ class Startup(unittest.TestCase):
 		self.assertEqual(len(caught.exception.errors), 2)
 		self.assertIn('future_days is a setting; move it from finbot.env to settings.conf',
 			'\n'.join(caught.exception.errors))
-		with mock.patch.dict(os.environ, {'ip': '1.2.3.4', 'port': '80'}):
+		with mock.patch.dict(os.environ, {'IP': '1.2.3.4', 'PORT': '80'}):
 			config.check_startup_environment() # startup keys are what the environment is for
 
 	def test_the_bot_refuses_to_start_with_a_setting_in_its_environment(self):
@@ -504,41 +477,43 @@ class Startup(unittest.TestCase):
 		"""Telegram's Bot API base is made from the bot token (a trailing slash dropped), and is empty without one."""
 		for token, api in (('123:abc', 'https://api.telegram.org/bot123:abc/'), ('123:abc/',
 				'https://api.telegram.org/bot123:abc/'), ('', '')):
-			values = config.startup_values(lambda name, default=None: token if name == 'telegramBotToken' else default)
+			values = config.startup_values(
+				lambda name, default=None: token if name == 'TELEGRAM_BOT_TOKEN' else default)
 			self.assertEqual(values.telegram_api, api)
 
 	def test_settings_that_leave_part_of_the_bot_unable_to_work_are_warned_about(self):
-		"""A startup warning for Slack commands without slackBotToken (no reply), and for an inbound webhook without its
-		secret (every request would be refused)."""
-		hooks = dict(slackOutgoingWebhook='https://example.com/slack', slackOutgoingToken='stok',
-			slackBotToken='xoxb-1', telegramOutgoingWebhook='https://example.com/telegram', telegramSecretToken='tok')
-		deaf = ('slackBotToken is set but neither slackAppToken nor slackOutgoingWebhook is: finbot hears nothing from'
-			' Slack, so its commands and buttons get no answer')
-		no_reply = 'slackOutgoingWebhook is set but slackBotToken is not: Slack commands will get no reply'
-		slack_refused = ('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
+		"""A startup warning for Slack commands without SLACK_BOT_TOKEN (no reply), and for an inbound webhook
+		without its secret (every request would be refused)."""
+		hooks = dict(SLACK_OUTGOING_WEBHOOK='https://example.com/slack', SLACK_OUTGOING_TOKEN='stok',
+			SLACK_BOT_TOKEN='xoxb-1', TELEGRAM_OUTGOING_WEBHOOK='https://example.com/telegram',
+			TELEGRAM_SECRET_TOKEN='tok')
+		deaf = ('SLACK_BOT_TOKEN is set but neither SLACK_APP_TOKEN nor SLACK_OUTGOING_WEBHOOK is: finbot hears nothing'
+			' from Slack, so its commands and buttons get no answer')
+		no_reply = 'SLACK_OUTGOING_WEBHOOK is set but SLACK_BOT_TOKEN is not: Slack commands will get no reply'
+		slack_refused = ('SLACK_OUTGOING_WEBHOOK is set but neither SLACK_SIGNING_SECRET nor SLACK_OUTGOING_TOKEN is:'
 			' Slack is turned off')
-		telegram_refused = ('telegramOutgoingWebhook is set but telegramSecretToken is not: Telegram is turned'
+		telegram_refused = ('TELEGRAM_OUTGOING_WEBHOOK is set but TELEGRAM_SECRET_TOKEN is not: Telegram is turned'
 			' off')
-		unused = ('telegramSecretToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram updates'
-			' (pull mode), and the token is not used')
-		app_no_reply = 'slackAppToken is set but slackBotToken is not: Slack commands will get no reply'
-		app_unused = ('slackAppToken is set but so is slackOutgoingWebhook: Slack posts its updates there (http mode),'
-			' and the app-level token is not used')
-		not_app = ("slackAppToken does not start with xapp-: it must be an app-level token (the app's Basic"
+		unused = ('TELEGRAM_SECRET_TOKEN is set but TELEGRAM_OUTGOING_WEBHOOK is not: finbot fetches its Telegram'
+			' updates (pull mode), and the token is not used')
+		app_no_reply = 'SLACK_APP_TOKEN is set but SLACK_BOT_TOKEN is not: Slack commands will get no reply'
+		app_unused = ('SLACK_APP_TOKEN is set but so is SLACK_OUTGOING_WEBHOOK: Slack posts its updates there'
+			' (http mode), and the app-level token is not used')
+		not_app = ("SLACK_APP_TOKEN does not start with xapp-: it must be an app-level token (the app's Basic"
 			' Information, App-Level Tokens), not the bot token')
-		bad_secret = ("telegramSecretToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the"
+		bad_secret = ("TELEGRAM_SECRET_TOKEN is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the"
 			" webhook's secret, so setting the webhook will fail")
-		cases = (({}, []), ({'slackBotToken': ''}, [no_reply]), ({'slackOutgoingToken': ''}, [slack_refused]),
-			({'slackOutgoingToken': '', 'slackSigningSecret': 's'}, []),
-			({'telegramSecretToken': ''}, [telegram_refused]), ({'telegramOutgoingWebhook': ''}, [unused]),
-			({'telegramOutgoingWebhook': '', 'telegramSecretToken': ''}, []),
-			({'telegramSecretToken': 'A-z_09' * 40}, []), ({'telegramSecretToken': 'x' * 257}, [bad_secret]),
-			({'telegramSecretToken': 'pass word!'}, [bad_secret]),
-			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1'}, []),
-			({'slackOutgoingWebhook': '', 'slackAppToken': 'xapp-1', 'slackBotToken': ''}, [app_no_reply]),
-			({'slackAppToken': 'xapp-1'}, [app_unused]),
-			({'slackOutgoingWebhook': '', 'slackAppToken': 'xoxb-1'}, [not_app]),
-			({'slackOutgoingWebhook': ''}, [deaf]))
+		cases = (({}, []), ({'SLACK_BOT_TOKEN': ''}, [no_reply]), ({'SLACK_OUTGOING_TOKEN': ''}, [slack_refused]),
+			({'SLACK_OUTGOING_TOKEN': '', 'SLACK_SIGNING_SECRET': 's'}, []),
+			({'TELEGRAM_SECRET_TOKEN': ''}, [telegram_refused]), ({'TELEGRAM_OUTGOING_WEBHOOK': ''}, [unused]),
+			({'TELEGRAM_OUTGOING_WEBHOOK': '', 'TELEGRAM_SECRET_TOKEN': ''}, []),
+			({'TELEGRAM_SECRET_TOKEN': 'A-z_09' * 40}, []), ({'TELEGRAM_SECRET_TOKEN': 'x' * 257}, [bad_secret]),
+			({'TELEGRAM_SECRET_TOKEN': 'pass word!'}, [bad_secret]),
+			({'SLACK_OUTGOING_WEBHOOK': '', 'SLACK_APP_TOKEN': 'xapp-1'}, []),
+			({'SLACK_OUTGOING_WEBHOOK': '', 'SLACK_APP_TOKEN': 'xapp-1', 'SLACK_BOT_TOKEN': ''}, [app_no_reply]),
+			({'SLACK_APP_TOKEN': 'xapp-1'}, [app_unused]),
+			({'SLACK_OUTGOING_WEBHOOK': '', 'SLACK_APP_TOKEN': 'xoxb-1'}, [not_app]),
+			({'SLACK_OUTGOING_WEBHOOK': ''}, [deaf]))
 		for changes, warnings in cases:
 			with self.subTest(changes=changes), \
 					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**hooks, **changes})):
@@ -548,16 +523,18 @@ class Startup(unittest.TestCase):
 		"""A startup warning for Discord's endpoint without the bot token, the endpoint without the app's public key
 		(every interaction refused), and the key without the endpoint (the gateway is used)."""
 		key = 'ab' * 32
-		http = dict(discordBotToken='x', discordOutgoingWebhook='https://example.com/discord', discordPublicKey=key)
-		no_reply = 'discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply'
-		refused = ("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex digits):"
+		http = dict(DISCORD_BOT_TOKEN='x', DISCORD_OUTGOING_WEBHOOK='https://example.com/discord',
+			DISCORD_PUBLIC_KEY=key)
+		no_reply = 'DISCORD_OUTGOING_WEBHOOK is set but DISCORD_BOT_TOKEN is not: Discord commands will get no reply'
+		refused = ("DISCORD_OUTGOING_WEBHOOK is set but DISCORD_PUBLIC_KEY is not the app's public key (64 hex digits):"
 			' Discord is turned off')
-		unused = ('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway (pull'
-			' mode), and the key is not used')
-		cases = (({}, []), ({'discordBotToken': ''}, [no_reply]),
-			({'discordBotToken': '', 'discordOutgoingWebhook': ''}, [unused]),
-			({'discordPublicKey': 'not-hex'}, [refused]), ({'discordPublicKey': ''}, [refused]),
-			({'discordOutgoingWebhook': ''}, [unused]), ({'discordOutgoingWebhook': '', 'discordPublicKey': ''}, []))
+		unused = ('DISCORD_PUBLIC_KEY is set but DISCORD_OUTGOING_WEBHOOK is not: finbot keeps to the Discord gateway'
+			' (pull mode), and the key is not used')
+		cases = (({}, []), ({'DISCORD_BOT_TOKEN': ''}, [no_reply]),
+			({'DISCORD_BOT_TOKEN': '', 'DISCORD_OUTGOING_WEBHOOK': ''}, [unused]),
+			({'DISCORD_PUBLIC_KEY': 'not-hex'}, [refused]), ({'DISCORD_PUBLIC_KEY': ''}, [refused]),
+			({'DISCORD_OUTGOING_WEBHOOK': ''}, [unused]),
+			({'DISCORD_OUTGOING_WEBHOOK': '', 'DISCORD_PUBLIC_KEY': ''}, []))
 		for changes, warnings in cases:
 			with self.subTest(changes=changes), \
 					mock.patch.object(config, 'env', dataclasses.replace(config.env, **{**http, **changes})):
@@ -566,13 +543,13 @@ class Startup(unittest.TestCase):
 	def test_startup_report_is_a_short_count_never_names_or_values(self):
 		"""The startup report counts the startup keys set and the settings, and never names them or shows their
 		values."""
-		with mock.patch.dict(os.environ, {'slackOutgoingWebhook': 'https://secret.example/abc', 'port': '5000'},
+		with mock.patch.dict(os.environ, {'SLACK_OUTGOING_WEBHOOK': 'https://secret.example/abc', 'PORT': '5000'},
 				clear=True):
 			lines = config.startup_report()
 		self.assertEqual(lines[0], 'startup environment (2 keys set)')
 		self.assertNotIn('secret.example', ''.join(lines))
-		self.assertNotIn('slackOutgoingWebhook', ''.join(lines))
-		with mock.patch.dict(os.environ, {'port': '5000'}, clear=True):
+		self.assertNotIn('SLACK_OUTGOING_WEBHOOK', ''.join(lines))
+		with mock.patch.dict(os.environ, {'PORT': '5000'}, clear=True):
 			self.assertEqual(config.startup_report()[0], 'startup environment (1 key set)')
 		conf = Path(common.temp_dir(self), 'settings.conf')
 		conf.write_text('graph = false\n')
@@ -633,7 +610,7 @@ class Tools(unittest.TestCase):
 	def test_check_config_script_exit_status_and_it_does_not_create_directories(self):
 		"""check_config exits 0 for a good file, 1 for a bad one, and makes no data dir (systemd may run it as root)."""
 		d = Path(common.temp_dir(self))
-		(d / 'finbot.env').write_text('port=80\n')
+		(d / 'finbot.env').write_text('PORT=80\n')
 		data = d / 'data'
 		run = lambda: subprocess.run([sys.executable, str(REPO / 'util' / 'check_config.py'), str(d / 'finbot.env')],
 			capture_output=True, text=True, env={**os.environ, 'DATA_DIR': str(data)})

@@ -16,14 +16,14 @@ The bot does the same either way. What differs is how it hears from Slack:
 | How messages, slash commands and button presses reach finbot | Over a socket that finbot opens to Slack | Slack posts them to your HTTPS server |
 | Listens on the internet | No: finbot opens the socket to Slack | Yes, behind your HTTPS server: a domain name with a valid certificate |
 | Python module | `websocket-client` (Debian: `python3-websocket`) | `waitress` (Debian: `python3-waitress`) |
-| Security | Nothing arrives unasked: the socket is one finbot opened with the app-level token (`slackAppToken`) | Slack's signature on every request, made with the app's Signing Secret (`slackSigningSecret`). Without it, finbot turns Slack off |
-| `finbot.env` keys | `slackBotToken`, `slackAppToken` | `slackBotToken`, `slackOutgoingWebhook`, and `slackSigningSecret` |
+| Security | Nothing arrives unasked: the socket is one finbot opened with the app-level token (`SLACK_APP_TOKEN`) | Slack's signature on every request, made with the app's Signing Secret (`SLACK_SIGNING_SECRET`). Without it, finbot turns Slack off |
+| `finbot.env` keys | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `SLACK_BOT_TOKEN`, `SLACK_OUTGOING_WEBHOOK`, and `SLACK_SIGNING_SECRET` |
 
-finbot chooses its mode from `finbot.env`: with `slackOutgoingWebhook` set, finbot uses push mode, with it empty, finbot uses pull
+finbot chooses its mode from `finbot.env`: with `SLACK_OUTGOING_WEBHOOK` set, finbot uses push mode, with it empty, finbot uses pull
 mode. On the Slack side, enabling _Socket Mode_ expects finbot to pull, and disabling it pushes updates to the _Event Subscriptions Request URL_.
 Slack's side is set by the manifest, which `util/slack_manifest.py` makes without reading `finbot.env`: run without `--url` it is Socket Mode, and with `--url
-https://example.com/slack` (the same URL as `slackOutgoingWebhook`) push mode. To switch modes, paste the manifest
-for the other mode into the [Slack app](https://api.slack.com.apps), and change `finbot.env` to match (set `slackOutgoingWebhook` for push mode, empty it
+https://example.com/slack` (the same URL as `SLACK_OUTGOING_WEBHOOK`) push mode. To switch modes, paste the manifest
+for the other mode into the [Slack app](https://api.slack.com.apps), and change `finbot.env` to match (set `SLACK_OUTGOING_WEBHOOK` for push mode, empty it
 for Socket Mode), then restart finbot. Full details follow.
 
 ### Pull Mode
@@ -37,19 +37,19 @@ for Socket Mode), then restart finbot. Full details follow.
    manifest into the JSON tab, and _Create_.
 3. Under _Basic Information > App-Level Tokens_, choose _Generate Token and Scopes_: name it (finbot, say), add the
    `connections:write` scope and _Generate_. Copy the token, which starts with `xapp-`, into `finbot.env` as
-   `slackAppToken`.
+   `SLACK_APP_TOKEN`.
 4. Install the socket module: `sudo apt install python3-websocket` (or `pip install websocket-client`).
 5. Go on with [installing the app](#installing-the-app), below.
 
 ```
-slackAppToken=xapp-your-app-level-token
-slackBotToken=xoxb-your-bot-token
+SLACK_APP_TOKEN=xapp-your-app-level-token
+SLACK_BOT_TOKEN=xoxb-your-bot-token
 ```
 
 ### Push mode
 
 Slack delivers the messages, the button presses and the slash commands to finbot over HTTPS. finbot listens on
-`http://127.0.0.1:5000` (`ip` and `port` in `finbot.env`), so it needs a web server in front of it, on a domain name
+`http://127.0.0.1:5000` (`IP` and `PORT` in `finbot.env`), so it needs a web server in front of it, on a domain name
 with a valid certificate.
 
 1. Put finbot behind an HTTPS server. An nginx example:
@@ -67,7 +67,7 @@ with a valid certificate.
    	}
    }
    ```
-2. In `finbot.env`, set `slackOutgoingWebhook` to the URL Slack should post to, and restart finbot, so that it can
+2. In `finbot.env`, set `SLACK_OUTGOING_WEBHOOK` to the URL Slack should post to, and restart finbot, so that it can
    answer Slack's check of the URL in step 4.
 3. Print the app's manifest with that URL, which Slack then posts everything to:
    `util/slack_manifest.py --url https://www.example.com:8443/slack` (and `--every-message`, as for
@@ -75,26 +75,26 @@ with a valid certificate.
 4. At https://api.slack.com/apps choose _Create New App > From an app manifest_, pick your workspace, paste the
    manifest into the JSON tab, and _Create_. Slack checks the URL, and finbot answers.
 5. In the app's _Basic Information > App Credentials_, copy the _Signing Secret_ into `finbot.env` as
-   `slackSigningSecret`. finbot checks Slack's signature on every request with it, and turns away a request signed more
+   `SLACK_SIGNING_SECRET`. finbot checks Slack's signature on every request with it, and turns away a request signed more
    than five minutes earlier: a replay, or a server clock that is wrong.
-   * The older _Verification Token_, set as `slackOutgoingToken`, still works in place of the signing secret, but
+   * The older _Verification Token_, set as `SLACK_OUTGOING_TOKEN`, still works in place of the signing secret, but
      Slack has deprecated it: the token travels in every request, where the signing secret never does.
-   * With `slackOutgoingWebhook` set and neither of them, finbot turns Slack off (it says so in the log at start).
+   * With `SLACK_OUTGOING_WEBHOOK` set and neither of them, finbot turns Slack off (it says so in the log at start).
 6. Go on with [installing the app](#installing-the-app), below.
 
 ```
-slackOutgoingWebhook=https://www.example.com:8443/slack
-slackSigningSecret=0123456789abcdef0123456789abcdef
-slackBotToken=xoxb-your-bot-token
+SLACK_OUTGOING_WEBHOOK=https://www.example.com:8443/slack
+SLACK_SIGNING_SECRET=0123456789abcdef0123456789abcdef
+SLACK_BOT_TOKEN=xoxb-your-bot-token
 ```
 
 ### Installing the app
 
 1. Under _Install App_ (or _OAuth & Permissions_), _Install to Workspace_, and copy the _Bot User OAuth Token_ into
-   `finbot.env` as `slackBotToken`. finbot replies with it; without it, commands get no reply, and the log says so at
+   `finbot.env` as `SLACK_BOT_TOKEN`. finbot replies with it; without it, commands get no reply, and the log says so at
    startup and for each reply.
 2. Restart finbot, and invite the bot to the channel: `/invite @finbot`. In Socket Mode the log says
-   `slack: Socket Mode (no slackOutgoingWebhook)`.
+   `slack: Socket Mode (no SLACK_OUTGOING_WEBHOOK)`.
 3. Send `/help` (or `@finbot help`) in the channel, or in a direct message to the bot in its _Messages_ tab, where
    `.help` works too (and in the channels, with `--every-message`). Each channel has the default scheduled jobs,
    which `/jobs` changes ([Scheduling](scheduling.md)).

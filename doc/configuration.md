@@ -20,22 +20,22 @@ of the chat network keys it needs.
 | Key | Default | Description |
 |---|---|---|
 | `DATA_DIR` | `var/` in the checkout (`$STATE_DIRECTORY` under systemd `StateDirectory=`) | Where state and cache live |
-| `ip` | `127.0.0.1` | Address the bot listens on, in push mode |
-| `port` | `5000` | Port the bot listens on, in push mode |
-| `scheduler_catchup` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
-| `sharesight_client_id` | | Sharesight API access |
-| `sharesight_client_secret` | | Sharesight API access |
-| `telegramBotToken` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `telegramOutgoingWebhook` is set) |
-| `slackBotToken` | | Slack bot token, for replies and chart uploads in Slack |
-| `slackAppToken` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `slackOutgoingWebhook` is empty |
-| `telegramOutgoingWebhook` | | The URL Telegram posts its updates to (push mode); empty, finbot fetches them (pull mode) |
-| `telegramSecretToken` | | Secret token Telegram must present (push mode); was `telegramOutgoingToken`, which still works |
-| `slackOutgoingWebhook` | | The URL Slack posts its events and button presses to (push mode); empty, Socket Mode with `slackAppToken` |
-| `slackOutgoingToken` | | Token Slack must present (push mode): the older way, which Slack has deprecated; not needed with `slackSigningSecret` |
-| `slackSigningSecret` | | Secret Slack signs each request with (push mode) |
-| `discordBotToken` | | Discord bot token: replies, and commands over the gateway API unless `discordOutgoingWebhook` is set |
-| `discordOutgoingWebhook` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (push mode); empty, the gateway API (pull mode) |
-| `discordPublicKey` | | The app's public key, which checks the signature of each interaction (push mode) |
+| `IP` | `127.0.0.1` | Address the bot listens on, in push mode |
+| `PORT` | `5000` | Port the bot listens on, in push mode |
+| `SCHEDULER_CATCHUP` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |
+| `SHARESIGHT_CLIENT_ID` | | Sharesight API access |
+| `SHARESIGHT_CLIENT_SECRET` | | Sharesight API access |
+| `TELEGRAM_BOT_TOKEN` | | Telegram bot token: reports, and commands (finbot fetches its updates unless `TELEGRAM_OUTGOING_WEBHOOK` is set) |
+| `SLACK_BOT_TOKEN` | | Slack bot token, for replies and chart uploads in Slack |
+| `SLACK_APP_TOKEN` | | Slack app-level token (`xapp-`): commands over a socket finbot opens to Slack (Socket Mode), when `SLACK_OUTGOING_WEBHOOK` is empty |
+| `TELEGRAM_OUTGOING_WEBHOOK` | | The URL Telegram posts its updates to (push mode); empty, finbot fetches them (pull mode) |
+| `TELEGRAM_SECRET_TOKEN` | | Secret token Telegram must present (push mode); was `TELEGRAM_OUTGOING_TOKEN`, which still works |
+| `SLACK_OUTGOING_WEBHOOK` | | The URL Slack posts its events and button presses to (push mode); empty, Socket Mode with `SLACK_APP_TOKEN` |
+| `SLACK_OUTGOING_TOKEN` | | Token Slack must present (push mode): the older way, which Slack has deprecated; not needed with `SLACK_SIGNING_SECRET` |
+| `SLACK_SIGNING_SECRET` | | Secret Slack signs each request with (push mode) |
+| `DISCORD_BOT_TOKEN` | | Discord bot token: replies, and commands over the gateway API unless `DISCORD_OUTGOING_WEBHOOK` is set |
+| `DISCORD_OUTGOING_WEBHOOK` | | The Interactions Endpoint URL Discord posts slash commands and button presses to (push mode); empty, the gateway API (pull mode) |
+| `DISCORD_PUBLIC_KEY` | | The app's public key, which checks the signature of each interaction (push mode) |
 
 Retired keys do nothing, and only get a note at start (and from check_config) saying to delete the line: `telegramChatID`, `slackChannelID` and `discordChannelID` (there are no home chats: each chat has its own jobs, and an error that belongs to no chat goes to the log), and `slack_webhook` and `discord_webhook`.
 
@@ -67,6 +67,7 @@ The administrators of the chat a person is in are admins there with no setting: 
 | `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
 | `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
 | `graph` | `True` | Send charts with reports |
+| `darkmode` | `off` | The charts' theme. `off`: light; `on`: dark; `auto`: dark from 18:00 to 06:00 in the `timezone` setting, light by day. The shorts chart keeps its own colours |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` (any other value stops a start or a reload, naming the key) |
@@ -109,8 +110,8 @@ In Docker, one container is enough: `bot.py` runs the schedule too, so there is 
 ## Sharesight
 * Email Sharesight support to get an API key and add the [access details](https://portfolio.sharesight.com/oauth_consumers) to `finbot.env`. Example:
 ```
-sharesight_client_id=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
-sharesight_client_secret=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
+SHARESIGHT_CLIENT_ID=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
+SHARESIGHT_CLIENT_SECRET=01d692d4de7 samplefc64bc2e2f01d692d4de72986ea808f6e99813f
 ```
 * Sharesight is optional. Without its keys, a chat's reports cover its watchlist alone, so add your holdings to it (`/watchlist add SYMBOL`); `/holdings`, `/trades`, `/performance`, `/who`, `/pie` and `/treemap` say Sharesight is not set up, and the trades and performance jobs are not among the default jobs.
 

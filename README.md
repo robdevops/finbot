@@ -43,11 +43,11 @@ To run it as a service, under systemd on a Debian host, see [doc/install.md](doc
 By default, finbot fetches its updates from each network itself (pull mode), which is what this quick start guide covers.
 Alternatively, if you prefer to run an HTTPS gateway (a reverse proxy on a domain with a valid certificate), push mode
 subscribes the bot to the updates each network pushes to it.
-* **Telegram:** create the bot with [@BotFather](https://telegram.me/BotFather), set `telegramBotToken` in the env file, restart
+* **Telegram:** create the bot with [@BotFather](https://telegram.me/BotFather), set `TELEGRAM_BOT_TOKEN` in the env file, restart
   finbot ([guide](doc/telegram.md)).
 * **Slack:** create the app from the manifest that `util/slack_manifest.py` prints, add an app-level token, set
-  `slackBotToken` and `slackAppToken` in the env file, restart finbot ([guide](doc/slack.md)).
-* **Discord:** create the application and its bot, turn on its Message Content intent, set `discordBotToken` in the env file,
+  `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` in the env file, restart finbot ([guide](doc/slack.md)).
+* **Discord:** create the application and its bot, turn on its Message Content intent, set `DISCORD_BOT_TOKEN` in the env file,
   restart finbot ([guide](doc/discord.md)).
 
 Then send `/help` in a chat with the bot. Commands work as plain messages too (`.help`), which are quicker to type on a

@@ -25,19 +25,18 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 	'alliterate': 'delete the line',
 	'chunk_maxlines': 'delete the line',
 	'performance_use_sharesight': 'delete the line (price performance comes from Yahoo)',
-	'slack_webhook': "each chat's jobs (/jobs) post there as the bot (slackBotToken); delete the line",
-	'discord_webhook': "each chat's jobs (/jobs) post there as the bot (discordBotToken); delete the line",
+	'slack_webhook': "each chat's jobs (/jobs) post there as the bot (SLACK_BOT_TOKEN); delete the line",
+	'discord_webhook': "each chat's jobs (/jobs) post there as the bot (DISCORD_BOT_TOKEN); delete the line",
 	'telegramChatID': HOME_CHAT,
 	'slackChannelID': HOME_CHAT,
 	'discordChannelID': HOME_CHAT,
 	'scheduler': 'the scheduler is always on, and a schedule without jobs runs nothing; delete the line',
 	'debug': 'log_level sets what the log shows (INFO by default; DEBUG adds cache hits); delete the line',
-	'sharesight_code': 'Sharesight needs only sharesight_client_id and sharesight_client_secret; delete the line',
+	'sharesight_code': 'Sharesight needs only SHARESIGHT_CLIENT_ID and SHARESIGHT_CLIENT_SECRET; delete the line',
 }
-RENAMED = { # startup keys under a new name: the old still works (the new wins where both are set), with a note at start
-	'telegramOutgoingToken': 'telegramSecretToken', # Telegram calls it the secret token
-}
+RENAMED = {} # startup keys under a new name: the old still works (the new wins where both are set), with a note
 SERVICE_DATA_DIR = '/var/lib/private/finbot' # systemd's state directory of finbot.service (StateDirectory=)
+DARKMODES = ('off', 'on', 'auto') # darkmode's values: light charts, dark ones, or dark at night (lib/render.py)
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -238,26 +237,26 @@ class _Reader:
 class Env:
 	"""The startup settings: finbot.env, which the launcher loads into the environment; fixed for the process. Each key
 	is a field with its default, read as its type says (startup_values), but those worked out from them (DERIVED)."""
-	ip: str = '127.0.0.1'
-	port: int = 5000
-	scheduler_catchup: int = 5 # minutes: a run missed while the bot was down still fires if it was due this recently
-	sharesight_client_id: str = '' # '' without Sharesight: a chat's reports then cover its watchlist alone
-	sharesight_client_secret: str = ''
-	slackBotToken: str = '' # '' when unset, like the rest below
-	slackAppToken: str = '' # xapp-: Socket Mode, Slack's pull mode (without slackOutgoingWebhook)
-	slackOutgoingToken: str = ''
-	slackOutgoingWebhook: str = ''
-	slackSigningSecret: str = ''
-	telegramBotToken: str = ''
-	telegramSecretToken: str = ''
-	telegramOutgoingWebhook: str = ''
-	discordBotToken: str = ''
-	discordOutgoingWebhook: str = '' # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
-	discordPublicKey: str = '' # the app's key, which checks the signature of each interaction posted to the endpoint
+	IP: str = '127.0.0.1'
+	PORT: int = 5000
+	SCHEDULER_CATCHUP: int = 5 # minutes: a run missed while the bot was down still fires if it was due this recently
+	SHARESIGHT_CLIENT_ID: str = '' # '' without Sharesight: a chat's reports then cover its watchlist alone
+	SHARESIGHT_CLIENT_SECRET: str = ''
+	SLACK_BOT_TOKEN: str = '' # '' when unset, like the rest below
+	SLACK_APP_TOKEN: str = '' # xapp-: Socket Mode, Slack's pull mode (without SLACK_OUTGOING_WEBHOOK)
+	SLACK_OUTGOING_TOKEN: str = ''
+	SLACK_OUTGOING_WEBHOOK: str = ''
+	SLACK_SIGNING_SECRET: str = ''
+	TELEGRAM_BOT_TOKEN: str = ''
+	TELEGRAM_SECRET_TOKEN: str = ''
+	TELEGRAM_OUTGOING_WEBHOOK: str = ''
+	DISCORD_BOT_TOKEN: str = ''
+	DISCORD_OUTGOING_WEBHOOK: str = '' # the interactions endpoint URL (http mode); unset, finbot keeps to the gateway
+	DISCORD_PUBLIC_KEY: str = '' # the app's key, which checks the signature of each interaction posted to the endpoint
 	data_dir: str = str(REPO_DIR / 'var') # DATA_DIR, else systemd's STATE_DIRECTORY: each chat's jobs, the watchlist,
 	# seen trades, ratings, settings.conf; a relative one is in the checkout, wherever finbot starts
 	cache_dir: str = str(REPO_DIR / 'var' / 'cache') # data_dir/cache
-	telegram_api: str = '' # the Bot API's base URL for telegramBotToken ('' without one): a method's name follows it
+	telegram_api: str = '' # the Bot API's base URL for TELEGRAM_BOT_TOKEN ('' without one): a method's name follows it
 
 	@property
 	def settings_path(self):
@@ -291,7 +290,7 @@ def startup_values(getenv):
 	r.check()
 	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or
 		service_data_dir() or 'var'))
-	token = keys['telegramBotToken'].rstrip('/')
+	token = keys['TELEGRAM_BOT_TOKEN'].rstrip('/')
 	return Env(**keys, data_dir=data_dir, cache_dir=data_dir + '/cache',
 		telegram_api=f'https://api.telegram.org/bot{token}/' if token else '')
 
@@ -306,6 +305,7 @@ class Settings:
 	cache: bool = True
 	cache_seconds: int = 21600
 	country_code: str = 'AU'
+	darkmode: str = 'off' # charts' theme: one of DARKMODES
 	demote_leveraged: bool = True
 	demote_volatile: bool = True
 	exchange_suffix: str = 'AX' # Yahoo's suffix for the local exchange: a bare ticker Yahoo does not know gets it
@@ -342,6 +342,7 @@ def setting_values(values):
 		'admin_only': r.blankable_words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
 		'country_code': lambda name, default: r.str(name, default).strip().upper(),
+		'darkmode': lambda name, default: r.choice(name, default, DARKMODES),
 		'hyperlinkProvider': lambda name, default: r.choice(name, default, ('google', 'yahoo')),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS),
 		'timezone': r.zone}
@@ -487,38 +488,39 @@ def startup_warnings(startup=None):
 	each."""
 	s = startup or env
 	warnings = []
-	if s.slackBotToken and not (s.slackAppToken or s.slackOutgoingWebhook):
-		warnings.append('slackBotToken is set but neither slackAppToken nor slackOutgoingWebhook is: finbot hears'
+	if s.SLACK_BOT_TOKEN and not (s.SLACK_APP_TOKEN or s.SLACK_OUTGOING_WEBHOOK):
+		warnings.append('SLACK_BOT_TOKEN is set but neither SLACK_APP_TOKEN nor SLACK_OUTGOING_WEBHOOK is: finbot hears'
 			' nothing from Slack, so its commands and buttons get no answer')
-	for key in ('slackOutgoingWebhook', 'slackAppToken'):
-		if getattr(s, key) and not s.slackBotToken:
-			warnings.append(f'{key} is set but slackBotToken is not: Slack commands will get no reply')
-	if s.slackAppToken and s.slackOutgoingWebhook:
-		warnings.append('slackAppToken is set but so is slackOutgoingWebhook: Slack posts its updates there'
+	for key in ('SLACK_OUTGOING_WEBHOOK', 'SLACK_APP_TOKEN'):
+		if getattr(s, key) and not s.SLACK_BOT_TOKEN:
+			warnings.append(f'{key} is set but SLACK_BOT_TOKEN is not: Slack commands will get no reply')
+	if s.SLACK_APP_TOKEN and s.SLACK_OUTGOING_WEBHOOK:
+		warnings.append('SLACK_APP_TOKEN is set but so is SLACK_OUTGOING_WEBHOOK: Slack posts its updates there'
 			' (http mode), and the app-level token is not used')
-	if s.slackAppToken and not s.slackAppToken.startswith('xapp-'):
-		warnings.append("slackAppToken does not start with xapp-: it must be an app-level token (the app's Basic"
+	if s.SLACK_APP_TOKEN and not s.SLACK_APP_TOKEN.startswith('xapp-'):
+		warnings.append("SLACK_APP_TOKEN does not start with xapp-: it must be an app-level token (the app's Basic"
 			' Information, App-Level Tokens), not the bot token')
-	if s.slackOutgoingWebhook and not (s.slackSigningSecret or s.slackOutgoingToken):
-		warnings.append('slackOutgoingWebhook is set but neither slackSigningSecret nor slackOutgoingToken is:'
+	if s.SLACK_OUTGOING_WEBHOOK and not (s.SLACK_SIGNING_SECRET or s.SLACK_OUTGOING_TOKEN):
+		warnings.append('SLACK_OUTGOING_WEBHOOK is set but neither SLACK_SIGNING_SECRET nor SLACK_OUTGOING_TOKEN is:'
 			' Slack is turned off')
-	if s.telegramOutgoingWebhook and not s.telegramSecretToken:
-		warnings.append('telegramOutgoingWebhook is set but telegramSecretToken is not: Telegram is turned'
+	if s.TELEGRAM_OUTGOING_WEBHOOK and not s.TELEGRAM_SECRET_TOKEN:
+		warnings.append('TELEGRAM_OUTGOING_WEBHOOK is set but TELEGRAM_SECRET_TOKEN is not: Telegram is turned'
 			' off')
-	if s.telegramSecretToken and not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', s.telegramSecretToken):
-		warnings.append('telegramSecretToken is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the'
+	if s.TELEGRAM_SECRET_TOKEN and not re.fullmatch(r'[A-Za-z0-9_-]{1,256}', s.TELEGRAM_SECRET_TOKEN):
+		warnings.append('TELEGRAM_SECRET_TOKEN is not 1 to 256 letters, digits, _ or -: Telegram takes no other as the'
 			" webhook's secret, so setting the webhook will fail")
-	if s.telegramSecretToken and not s.telegramOutgoingWebhook:
-		warnings.append('telegramSecretToken is set but telegramOutgoingWebhook is not: finbot fetches its Telegram'
+	if s.TELEGRAM_SECRET_TOKEN and not s.TELEGRAM_OUTGOING_WEBHOOK:
+		warnings.append('TELEGRAM_SECRET_TOKEN is set but TELEGRAM_OUTGOING_WEBHOOK is not: finbot fetches its Telegram'
 			' updates (pull mode), and the token is not used')
-	if s.discordOutgoingWebhook and not s.discordBotToken:
-		warnings.append('discordOutgoingWebhook is set but discordBotToken is not: Discord commands will get no reply')
-	if s.discordOutgoingWebhook and not re.fullmatch(r'[0-9a-fA-F]{64}', s.discordPublicKey):
-		warnings.append("discordOutgoingWebhook is set but discordPublicKey is not the app's public key (64 hex"
+	if s.DISCORD_OUTGOING_WEBHOOK and not s.DISCORD_BOT_TOKEN:
+		warnings.append('DISCORD_OUTGOING_WEBHOOK is set but DISCORD_BOT_TOKEN is not: Discord commands will get no'
+			' reply')
+	if s.DISCORD_OUTGOING_WEBHOOK and not re.fullmatch(r'[0-9a-fA-F]{64}', s.DISCORD_PUBLIC_KEY):
+		warnings.append("DISCORD_OUTGOING_WEBHOOK is set but DISCORD_PUBLIC_KEY is not the app's public key (64 hex"
 			' digits): Discord is turned off')
-	if s.discordPublicKey and not s.discordOutgoingWebhook:
-		warnings.append('discordPublicKey is set but discordOutgoingWebhook is not: finbot keeps to the Discord gateway'
-			' (pull mode), and the key is not used')
+	if s.DISCORD_PUBLIC_KEY and not s.DISCORD_OUTGOING_WEBHOOK:
+		warnings.append('DISCORD_PUBLIC_KEY is set but DISCORD_OUTGOING_WEBHOOK is not: finbot keeps to the Discord'
+			' gateway (pull mode), and the key is not used')
 	if note := template_note(s.settings_path):
 		warnings.append(note)
 	return warnings
