@@ -20,7 +20,6 @@ of the chat network keys it needs.
 | Key | Default | Description |
 |---|---|---|
 | `DATA_DIR` | `var/` in the checkout (`$STATE_DIRECTORY` under systemd `StateDirectory=`) | Where state and cache live |
-| `DARKMODE` | `off` | The charts' theme. `off`: light; `on`: dark; `auto`: dark from 18:00 to 06:00 in the `timezone` setting, light by day. The shorts chart keeps its own colours |
 | `IP` | `127.0.0.1` | Address the bot listens on, in push mode |
 | `PORT` | `5000` | Port the bot listens on, in push mode |
 | `SCHEDULER_CATCHUP` | `5` | Minutes: a run missed while the bot was down still fires if it was due this recently |

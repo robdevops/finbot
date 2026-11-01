@@ -2,7 +2,6 @@
 draws only for a chat that takes charts, and once: the image is cached by the spec's hash. A chart with curves or
 slants is drawn at S times its size and reduced, which smooths their edges (_Canvas); its coordinates are pixels of the
 1280x800 image (y down), and its text and line sizes are points at 200 dpi, as on the 6.4 by 4 inch page it once was."""
-import contextvars
 import dataclasses
 import datetime
 import functools
@@ -11,7 +10,6 @@ import io
 import json
 import math
 import threading
-import zoneinfo
 from pathlib import Path
 from lib import cache
 from lib import config
@@ -47,35 +45,13 @@ class Chart:
 VALUE_FORMATS = {'percent': lambda v: formats.signed_percent(round(v)),
 	'percent2': lambda v: formats.signed_percent(v, 2), 'number': lambda v: f"{v:g}"}
 
-PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # the dark charts: surface, ink, muted ink, grid lines
-LIGHT_PALETTE = ('#ffffff', '#1a1f27', '#5f6b7a', '#e1e5ea') # the light charts' (darkmode off)
-LIGHT_UP, LIGHT_DOWN = '#0f9d6b', '#e11d48' # a rise and a fall on a light surface: darker, to read on white
-NIGHT = (18, 6) # darkmode auto: dark from 18:00 to 06:00 in the timezone setting
+PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # charts: dark surface, ink, muted ink, grid lines
 CATEGORIES = ('#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767') # the dark
 # categorical slots, in fixed order; the green and red ones mean up and down, so lines that are neither leave them out
 NEITHER_UP_NOR_DOWN = tuple(color for color in CATEGORIES if color not in ('#008300', '#e66767'))
 COMPARE = (*NEITHER_UP_NOR_DOWN, '#2bb5d6', '#d9dde3') # .compare's eight lines: those slots, then a cyan, a pale gray
-UP, DOWN = '#34d399', '#fb7185' # a rise, a fall, neither: a price line's colour by its change
+UP, DOWN, FLAT = '#34d399', '#fb7185', PALETTE[2] # a rise, a fall, neither: a price line's colour by its change
 BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
-_dark_now = contextvars.ContextVar('dark_now', default=None) # draw() settles the theme once, for its whole drawing
-
-def is_dark():
-	"""Whether charts are drawn dark now: the darkmode setting (on; auto: at night in the timezone setting)."""
-	if (settled := _dark_now.get()) is not None:
-		return settled
-	mode = config.env.DARKMODE
-	if mode == 'auto':
-		hour = datetime.datetime.now(zoneinfo.ZoneInfo(config.settings.timezone)).hour
-		return hour >= NIGHT[0] or hour < NIGHT[1]
-	return mode == 'on'
-
-def palette():
-	"""The surface, ink, muted ink and grid colours of the theme in force."""
-	return PALETTE if is_dark() else LIGHT_PALETTE
-
-def rise_fall_flat():
-	"""The colours of a rise, a fall and neither, in the theme in force."""
-	return (UP, DOWN, PALETTE[2]) if is_dark() else (LIGHT_UP, LIGHT_DOWN, LIGHT_PALETTE[2])
 
 W, H = 1280, 800 # Telegram's photo size, so a chart is never resampled
 S = 2 # a chart with curves is drawn at S times its size, then reduced: Pillow draws shapes without anti-aliasing
@@ -378,7 +354,7 @@ def _time_axes(canvas, right, first, last, ylim, label):
 	"""The axes of a chart over time, from the day `first` to `last` (ordinals) and over ylim, out to `right`, with a
 	left margin as wide as its value labels need: a horizontal grid line at each round value, labelled label(value),
 	and the dates beneath. Returns the axes."""
-	_, _, ink2, grid = palette()
+	_, _, ink2, grid = PALETTE
 	values = _ticks(*ylim)
 	labels = [label(value) for value in values]
 	left = max(0.075 * W, max(canvas.measure(text, 10) for text in labels) + 4 * PT + 18) # never clipped
@@ -396,7 +372,7 @@ def _time_axes(canvas, right, first, last, ylim, label):
 
 def _heading(canvas, title, subtitle='', subtitle_color=None):
 	"""A chart's title at the top left, and its subtitle (if any) beneath, each shrunk to fit the width."""
-	_, ink, ink2, _ = palette()
+	_, ink, ink2, _ = PALETTE
 	room = 0.94 * canvas.width
 	canvas.text(0.03 * W, 0.043 * H, title, canvas.fit(13, [title], room, bold=True), ink, bold=True)
 	if subtitle:
@@ -415,11 +391,10 @@ def _dated(rows):
 def draw_line(chart):
 	"""A price line (rows of (date, close)), coloured by the sign of the change it shows (green up, red down, grey
 	neither: told apart by lightness as well as hue), its high and low marked: a 1280x800 PNG."""
-	bg, ink, _, _ = palette()
+	bg, ink, _, _ = PALETTE
 	x, y = _dated(chart.rows)
 	change = chart.change if chart.change is not None else y[-1] - y[0]
-	up, down, flat = rise_fall_flat()
-	color = up if change > 0 else down if change < 0 else flat
+	color = UP if change > 0 else DOWN if change < 0 else FLAT
 	canvas = _Canvas(W, H, bg)
 	low, high = min(y), max(y)
 	span = (high - low) or max(abs(high) * 0.02, 1e-9) # headroom above and below, so the labels never leave the plot
@@ -454,8 +429,7 @@ def draw_line(chart):
 def draw_compare(chart):
 	"""Rebased % change lines of two to eight price series (rows of (label, ((date, close), ...)), already cropped to
 	the period), each labelled at its end: a 1280x800 PNG."""
-	bg, ink, ink2, _ = palette()
-	lines = COMPARE if is_dark() else (*COMPARE[:-1], '#6b7280') # the pale gray would vanish on white
+	bg, ink, ink2, _ = PALETTE
 	rebased = [] # (label, days, % change since the first close)
 	for label, points in chart.rows:
 		x, y = _dated(points)
@@ -467,7 +441,7 @@ def draw_compare(chart):
 	axes = _time_axes(canvas, 0.795 * W, min(x[0] for _, x, _ in rebased), max(x[-1] for _, x, _ in rebased),
 		(min(lo, 0) - span * 0.06, max(hi, 0) + span * 0.06), lambda v: f"{v:+,.0f}%" if v else "0%")
 	canvas.line([(axes.left, axes.y(0)), (axes.right, axes.y(0))], _mixed(ink2, bg, 0.4), 0.8, rounded=False)
-	for (label, x, y), color in zip(rebased, lines):
+	for (label, x, y), color in zip(rebased, COMPARE):
 		canvas.line([axes.at(*point) for point in zip(x, y)], color, 1.5)
 
 	# direct end-labels in the right margin, spread so they never overlap
@@ -485,7 +459,7 @@ def draw_compare(chart):
 	width = axes.right - axes.left
 	for (value, i), p in zip(ends, pos):
 		label, x, _ = rebased[i]
-		color = lines[i]
+		color = COMPARE[i]
 		ty, tx = axes.bottom - p * (axes.bottom - axes.top), axes.left + 1.03 * width
 		ex, ey = axes.at(x[-1], value) # the line's end: the label's leader stops 2pt short of it
 		short = 2 * PT / max(math.hypot(tx - ex, ty - ey), 2 * PT)
@@ -497,7 +471,7 @@ def draw_compare(chart):
 	_heading(canvas, chart.title, chart.subtitle)
 	return canvas.png()
 
-SESSION_TINTS = ('midsession', 'premarket') # a subtle green (the rise colour) / yellow wash; at close stays plain
+SESSION_TINTS = {'midsession': UP, 'premarket': '#facc15'} # subtle green / yellow wash; at close stays plain
 
 @_drawn
 def draw_bars(chart):
@@ -508,9 +482,9 @@ def draw_bars(chart):
 	session 'midsession' or 'premarket' washes the background green or yellow."""
 	rows, subtitle, xlim, session = chart.rows, chart.subtitle, chart.xlim, chart.session
 	value_fmt = VALUE_FORMATS[chart.value_format]
-	bg, ink, ink2, _ = palette()
+	bg, ink, ink2, _ = PALETTE
 	if session in SESSION_TINTS:
-		bg = _mixed(bg, rise_fall_flat()[0] if session == 'midsession' else '#facc15', 0.07)
+		bg = _mixed(bg, SESSION_TINTS[session], 0.07)
 	n = len(rows)
 	canvas = _Canvas(W, H * max(1, n / ROWS), bg, scale=1) # upright edges alone: nothing to smooth
 	top_edge = _plot_top(subtitle) # as far from the top in a taller image
@@ -556,7 +530,7 @@ def draw_bars(chart):
 	clipped = lambda v: axes.x(min(max(v, lo), hi)) # a zoomed axis cuts the bars at its edge
 	for y, _, v in real:
 		canvas.rect(clipped(0), axes.y(y - 0.36), clipped(v), axes.y(y + 0.36),
-			BAR_UP if v >= 0 and y not in chart.red_rows else rise_fall_flat()[1])
+			BAR_UP if v >= 0 and y not in chart.red_rows else DOWN)
 	if not xlim:
 		canvas.line([(axes.x(0), top_edge), (axes.x(0), bottom_edge)], ink2, 1.0, rounded=False)
 	# each row's label sits beside the bar's base (left of the zero line for rising bars, right of it for falling ones),
@@ -734,8 +708,7 @@ def draw_treemap(chart):
 	(the dark categorical slots in order, gray for 'Other') under its name, a tile a holding sized by value: a
 	1280x800 PNG."""
 	rows = chart.rows
-	bg = palette()[0]
-	shade = bg if is_dark() else '#000000' # tiles of a block step toward the surface; on a light one, toward black
+	bg = PALETTE[0]
 	canvas = _Canvas(W, H, bg, scale=1) # upright edges alone: nothing to smooth
 	total = sum(value for _, held in rows for _, value in held) or 1.0
 	top = _plot_top(chart.subtitle) # below the heading, as the other charts are
@@ -751,7 +724,7 @@ def draw_treemap(chart):
 			canvas.text(x + 2, y + head / 2, title, 8, color, bold=True)
 		tiles = _squarify([value for _, value in held], x, y + head, w, h - head)
 		for k, ((name, value), (tx, ty, tw, th)) in enumerate(zip(held, tiles)):
-			canvas.rect(tx + 1, ty + 1, tx + tw - 1, ty + th - 1, _mixed(color, shade, k % 3 * 0.14))
+			canvas.rect(tx + 1, ty + 1, tx + tw - 1, ty + th - 1, _mixed(color, bg, k % 3 * 0.14))
 			share = f"{value / total * 100:.1f}%"
 			if th > 34 and canvas.measure(name, 8) + 8 < tw: # its name where it fits, and its share below
 				lines = name + (f"\n{share}" if th > 64 and canvas.measure(share, 8) + 8 < tw else '')
@@ -763,7 +736,7 @@ def draw_treemap(chart):
 def blank():
 	"""A 1x1 PNG in the chart background: the image of a picker's answer that has no chart, whose message must stay a
 	photo for a press to turn into a chart (a text message cannot become one)."""
-	canvas = _Canvas(1, 1, palette()[0])
+	canvas = _Canvas(1, 1, PALETTE[0])
 	return canvas.png()
 
 @functools.cache
@@ -793,16 +766,11 @@ def draw(chart):
 	same spec always draws the same image, so it is never stale."""
 	if chart.kind not in RENDERERS:
 		raise ValueError(f"unknown chart kind {chart.kind!r}")
-	dark = is_dark() # settled once: a drawing at the turn of the night never mixes the two
-	key = json.dumps([_code_version(), dark, dataclasses.asdict(chart)], sort_keys=True, default=str)
+	key = json.dumps([_code_version(), dataclasses.asdict(chart)], sort_keys=True, default=str)
 	name = f"finbot_chart_{hashlib.sha1(key.encode()).hexdigest()[:20]}.png"
 	if config.settings.cache and (image := cache.read_bytes(name, math.inf)): # kept until cleanup: it never goes stale
 		return image
-	token = _dark_now.set(dark)
-	try:
-		image = RENDERERS[chart.kind](trimmed(chart))
-	finally:
-		_dark_now.reset(token)
+	image = RENDERERS[chart.kind](trimmed(chart))
 	if config.settings.cache:
 		cache.write_bytes(name, image)
 		image.seek(0)

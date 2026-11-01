@@ -36,7 +36,6 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 }
 RENAMED = {} # startup keys under a new name: the old still works (the new wins where both are set), with a note
 SERVICE_DATA_DIR = '/var/lib/private/finbot' # systemd's state directory of finbot.service (StateDirectory=)
-DARKMODES = ('off', 'on', 'auto') # darkmode's values: light charts, dark ones, or dark at night (lib/render.py)
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -239,7 +238,6 @@ class Env:
 	is a field with its default, read as its type says (startup_values), but those worked out from them (DERIVED)."""
 	IP: str = '127.0.0.1'
 	PORT: int = 5000
-	DARKMODE: str = 'off' # the charts' theme, one of DARKMODES; all caps, like DATA_DIR
 	SCHEDULER_CATCHUP: int = 5 # minutes: a run missed while the bot was down still fires if it was due this recently
 	SHARESIGHT_CLIENT_ID: str = '' # '' without Sharesight: a chat's reports then cover its watchlist alone
 	SHARESIGHT_CLIENT_SECRET: str = ''
@@ -286,8 +284,7 @@ def startup_values(getenv):
 		return getenv(newer[name], default) if name in newer and getenv(name, '') == '' else value
 	r = _Reader(read)
 	readers = {int: r.int, str: r.str}
-	keys = {field.name: (lambda name, default: r.choice(name, default, DARKMODES) if name == 'DARKMODE'
-		else readers[field.type](name, default))(field.name, field.default) for field in dataclasses.fields(Env)
+	keys = {field.name: readers[field.type](field.name, field.default) for field in dataclasses.fields(Env)
 		if field.name not in DERIVED}
 	r.check()
 	data_dir = str(REPO_DIR / (getenv('DATA_DIR') or (getenv('STATE_DIRECTORY') or '').split(':')[0] or
