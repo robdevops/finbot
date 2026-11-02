@@ -33,7 +33,7 @@ class Chart:
 	xlim: tuple = None # bars: the value axis, zoomed
 	session: str = None # bars: 'midsession' or 'premarket' tints the background
 	red_rows: tuple = () # bars: the indices of rows drawn in red though they are not below zero (the sells)
-	threshold: float = None # shorts: the outrageous line
+	threshold: float = None # shorts: the report's cut-off, which its rows are over
 	change: float = None # line: the change shown, whose sign colours the line and its subtitle
 	source: str = '' # where the data comes from, cited at the foot of the image ('Yahoo Finance')
 
@@ -86,7 +86,7 @@ FONTS = ('DejaVuSans.ttf', 'DejaVuSans-Bold.ttf') # the system's DejaVu Sans, ma
 ASCENT, DESCENT = 0.76, 0.21 # its tallest letters and descenders, in ems: a line of text sits as matplotlib set it
 SLANT = 0.2 # italic: the upright face sheared by 11 degrees, as its oblique is (not in fonts-dejavu-core)
 
-_source = contextvars.ContextVar('source', default='') # draw() cites the chart's source on its canvas
+_source = contextvars.ContextVar('source', default=None) # draw() cites the chart's (source, kind) on its canvas
 _drawing = threading.RLock() # one chart at a time: Pillow's fonts are shared by every thread
 
 def preload():
@@ -177,7 +177,9 @@ class _Canvas:
 		image = self.image.reduce(self.scale) if self.scale > 1 else self.image
 		pen = ImageDraw.Draw(image)
 		if cited := _source.get():
-			self.text(0.03 * W, self.height - 0.012 * H, f"Source: {cited}", 6.5, palette()[2], va='bottom')
+			source, kind = cited
+			color = 'white' if kind == 'shorts' else palette()[2] # the shorts chart's foot is the sea: as its joke
+			self.text(0.03 * W, self.height - 0.012 * H, f"Source: {source}", 6.5, color, va='bottom')
 		for x, baseline, line, size, color, bold, italic in self.writing:
 			if italic:
 				_slanted(image, x, baseline, line, size, color)
@@ -575,24 +577,15 @@ def draw_bars(chart):
 	_heading(canvas, chart.title, subtitle)
 	return canvas.png()
 
-# five points each at the bottom
-SHORTS_VERDICTS = ((5, 'board shorts'), (10, 'cargo shorts'), (15, 'boxers'), (20, 'gym shorts'),
-	(30, 'cutoffs'), (40, 'short shorts'), (50, 'daisy dukes'), (60, 'hot pants'), (70, 'speedos'),
-	(80, 'budgie smugglers'), (90, 'just a belt'),
-	(float('inf'), 'never nudes')) # the extreme ones step in every 10 points
-
+DISCLAIMER = 'Past fashion not indicative of future fashion. Hopefully. For information only; not fashion advice.'
 PAIR = 5 # the percent of shares shorted that a pair of shorts stands for
-
-def shorts_verdict(percent):
-	"""The more shorted, the shorter the shorts."""
-	return next(name for limit, name in SHORTS_VERDICTS if percent < limit)
 
 @_drawn
 def draw_shorts(chart):
 	"""Short interest as a pictogram: each row (label, percent), largest first, is a run of cartoon shorts, one pair per
-	PAIR percent (the last pair cropped); a (label, None) row is a gap; the threshold is the outrageous line. Loud on
+	PAIR percent (the last pair cropped); a (label, None) row is a gap; Loud on
 	purpose, and drawn in shapes, as colour emoji are no part of the font: a 1280x800 PNG."""
-	rows, threshold = chart.rows, chart.threshold
+	rows = chart.rows
 	sky, ink, sea, foam, ray = '#ffe66d', '#1b1f3b', '#1ea7e1', '#b5e8ff', '#ffd23f'
 	colors = ['#ff3d81', '#00b8a0', '#ff8a00', '#7a5cff', '#5bc215']
 	rows = [(label if len(label) <= 10 else label[:9] + '…', value) for label, value in rows]
@@ -624,24 +617,18 @@ def draw_shorts(chart):
 		canvas.polygon([(sx, sy), (sx + 2000 * math.cos(a0), sy + 2000 * math.sin(a0)),
 			(sx + 2000 * math.cos(a1), sy + 2000 * math.sin(a1))], ray)
 
-	top, bottom = 205, 726 # below the sun
+	top, bottom = 150, 680 # just below the subtitle, clear of the sea
 	n = len(rows)
-	row_h = min((bottom - top) / n, 110)
-	top += ((bottom - top) - row_h * n) / 2 # few rows sit in the middle of the beach, not the top
+	row_h = min((bottom - top) / n, 92)
 	bottom = top + row_h * n
 	size = max(6, min(18, row_h * 0.5 * 72 / 200 * 2))
 	label_w = max(canvas.measure(str(label), size, bold=True) for label, _ in rows)
-	x0 = 40 + label_w + 16
-	room = 40 + 400 # right-hand text: percent and verdict
+	x0 = 24 + label_w + 16 # the panel sits a little left of the title's margin
+	room = 24 + 280 # right-hand text: the percent, and clear of the sun
 	max_icons = max(math.ceil(max(v for _, v in rows if v is not None) / PAIR), 1)
-	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 120)
+	icon_w = min((W - room - x0) / max_icons, row_h * 1.1 * 0.9, 100)
 	icon_h = icon_w / 1.1
 	lw = max(0.6, min(1.6, icon_w / 45))
-	line_x = x0 + threshold / PAIR * icon_w
-	dash, gap = 5 * 1.8 * PT, 4 * 1.8 * PT # the outrageous line's dashes, under the shorts
-	for y in range(math.ceil((bottom - top + 12) / (dash + gap))):
-		start = top - 12 + y * (dash + gap)
-		canvas.line([(line_x, start), (line_x, min(start + dash, bottom))], ink, 1.8, rounded=False)
 
 	def at(u, v):
 		"""A point on the sun's face, in sun radii from its centre with y down, in the canvas's pixels."""
@@ -694,12 +681,8 @@ def draw_shorts(chart):
 			continue
 		cy = top + (i + 0.5) * row_h
 		canvas.text(x0 - 14, cy, label, size, ink, ha='right', bold=True)
-		# each verdict right after its own percentage, never off the image
-		x = canvas.text(x0 + (value / PAIR) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True) + 10
-		verdict = shorts_verdict(round(value))
-		canvas.text(x, cy, verdict, canvas.fit(size * 0.62, [verdict], W - 16 - x), ink, italic=True)
-	canvas.text(W / 2, 784, 'past fashion not indicative of future fashion', 8, 'white', ha='center', italic=True)
-	canvas.text(line_x, top - 18, f"{threshold:g}% outrageous line", 7.5, ink, ha='center', va='bottom', bold=True)
+		canvas.text(x0 + (value / PAIR) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True)
+	canvas.text(W - 0.03 * W, 784, DISCLAIMER, 7, 'white', ha='right', italic=True)
 	return canvas.png()
 
 def _worst(row, side):
@@ -803,7 +786,7 @@ def draw(chart):
 	name = f"finbot_chart_{hashlib.sha1(key.encode()).hexdigest()[:20]}.png"
 	if config.settings.cache and (image := cache.read_bytes(name, math.inf)): # kept until cleanup: it never goes stale
 		return image
-	token, cited = _dark_now.set(dark), _source.set(chart.source)
+	token, cited = _dark_now.set(dark), _source.set((chart.source, chart.kind) if chart.source else None)
 	try:
 		image = RENDERERS[chart.kind](trimmed(chart))
 	finally:

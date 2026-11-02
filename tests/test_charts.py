@@ -173,20 +173,14 @@ class ImageSanity(unittest.TestCase):
 		red = bars(rows, 'Ratings', xlim=(0.9, 4.6), red_rows=(2,)).getvalue()
 		self.assertNotEqual(plain, red)
 
-	def test_shorts_chart_sizes_and_verdicts(self):
-		"""The shorts pictogram draws 1 to 45 rows and a long label; each tier of short interest gets its verdict."""
+	def test_shorts_chart_sizes(self):
+		"""The shorts pictogram draws 1 to 45 rows and a long label."""
 		for n in (1, 5, 45):
 			rows = [(f'T{i}', 60.0 - i) for i in range(n)]
 			self.check_image(uncached(render.Chart('shorts', rows=tuple(rows), threshold=15)), f'shorts {n} rows',
 				bg=SHORTS_BG, edge_clean=False)
 		self.check_image(shorts([('A VERY LONG LABEL', 15.0), ('B', 0.4)]), 'shorts long label and tiny value',
 			bg=SHORTS_BG, edge_clean=False)
-		tiers = [(0, 'board shorts'), (4.9, 'board shorts'), (5, 'cargo shorts'), (10, 'boxers'), (15, 'gym shorts'),
-			(20, 'cutoffs'),
-				 (30, 'short shorts'), (40, 'daisy dukes'), (50, 'hot pants'), (60, 'speedos'),
-				 (70, 'budgie smugglers'),
-				 (80, 'just a belt'), (90, 'never nudes'), (200, 'never nudes')]
-		self.assertEqual([render.shorts_verdict(p) for p, _ in tiers], [name for _, name in tiers])
 
 	def test_bar_graph_has_top_and_bottom(self):
 		"""The top-and-bottom bar chart draws a sane image."""
