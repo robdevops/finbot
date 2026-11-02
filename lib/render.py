@@ -682,7 +682,7 @@ def draw_shorts(chart):
 		cy = top + (i + 0.5) * row_h
 		canvas.text(x0 - 14, cy, label, size, ink, ha='right', bold=True)
 		canvas.text(x0 + (value / PAIR) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True)
-	canvas.text(W - 0.03 * W, 784, DISCLAIMER, 7, 'white', ha='right', italic=True)
+	canvas.text(W - 0.03 * W, 784, DISCLAIMER, 6.5, 'white', ha='right', italic=True)
 	return canvas.png()
 
 def _worst(row, side):
