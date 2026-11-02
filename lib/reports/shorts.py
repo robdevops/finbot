@@ -53,4 +53,4 @@ def report(service, tickers, market_data, threshold, specific_stock):
 		return lines, None
 	return [service.bold(f'Tracked stocks shorted over {threshold:g}%')] + lines, render.Chart('shorts',
 		subtitle=formats.date_short(formats.today(), True), rows=tuple((code, percent) for percent, _, code in found),
-		threshold=threshold, source='shortman.com.au')
+		threshold=threshold, source='shortman.com.au, Yahoo Finance')

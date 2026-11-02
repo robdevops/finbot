@@ -179,7 +179,7 @@ class _Canvas:
 		if cited := _source.get():
 			source, kind = cited
 			color = 'white' if kind == 'shorts' else palette()[2] # the shorts chart's foot is the sea: as its joke
-			self.text(0.03 * W, self.height - 0.012 * H, f"Source: {source}", 6.5, color, va='bottom')
+			self.text(0.03 * W, self.height - 0.012 * H, f"Source: {source}", 6, color, va='bottom')
 		for x, baseline, line, size, color, bold, italic in self.writing:
 			if italic:
 				_slanted(image, x, baseline, line, size, color)
@@ -577,7 +577,7 @@ def draw_bars(chart):
 	_heading(canvas, chart.title, subtitle)
 	return canvas.png()
 
-DISCLAIMER = 'Past fashion not indicative of future fashion. Hopefully. For information only; not fashion advice.'
+DISCLAIMER = 'Past fashion not indicative of future fashion. For information only; not fashion advice.'
 PAIR = 5 # the percent of shares shorted that a pair of shorts stands for
 
 @_drawn
@@ -682,7 +682,7 @@ def draw_shorts(chart):
 		cy = top + (i + 0.5) * row_h
 		canvas.text(x0 - 14, cy, label, size, ink, ha='right', bold=True)
 		canvas.text(x0 + (value / PAIR) * icon_w + 14, cy, f"{round(value)}%", size, ink, bold=True)
-	canvas.text(W - 0.03 * W, 784, DISCLAIMER, 7, 'white', ha='right', italic=True)
+	canvas.text(W - 0.03 * W, 784, DISCLAIMER, 6, 'white', ha='right', italic=True)
 	return canvas.png()
 
 def _worst(row, side):
