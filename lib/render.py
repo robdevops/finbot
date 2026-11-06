@@ -51,7 +51,6 @@ VALUE_FORMATS = {'percent': lambda v: formats.signed_percent(round(v)),
 PALETTE = ('#14181f', '#eef1f5', '#9aa4b2', '#2a313c') # the dark charts: surface, ink, muted ink, grid lines
 LIGHT_PALETTE = ('#ffffff', '#1a1f27', '#5f6b7a', '#e1e5ea') # the light charts' (darkmode off)
 LIGHT_UP, LIGHT_DOWN = '#0f9d6b', '#e11d48' # a rise and a fall on a light surface: darker, to read on white
-NIGHT = (18, 6) # darkmode auto: dark from 18:00 to 06:00 in the timezone setting
 CATEGORIES = ('#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767') # the dark
 # categorical slots, in fixed order; the green and red ones mean up and down, so lines that are neither leave them out
 NEITHER_UP_NOR_DOWN = tuple(color for color in CATEGORIES if color not in ('#008300', '#e66767'))
@@ -61,14 +60,16 @@ BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
 _dark_now = contextvars.ContextVar('dark_now', default=None) # draw() settles the theme once, for its whole drawing
 
 def is_dark():
-	"""Whether charts are drawn dark now: the darkmode setting (on; auto: at night in the timezone setting)."""
+	"""Whether charts are drawn dark now: the darkmode setting (on; auto or hours: within them in the timezone)."""
 	if (settled := _dark_now.get()) is not None:
 		return settled
 	mode = config.settings.darkmode
-	if mode == 'auto':
-		hour = datetime.datetime.now(zoneinfo.ZoneInfo(config.settings.timezone)).hour
-		return hour >= NIGHT[0] or hour < NIGHT[1]
-	return mode == 'on'
+	if mode in ('on', 'off'):
+		return mode == 'on'
+	start, end = config.night_hours(config.NIGHT_HOURS if mode == 'auto' else mode)
+	now = datetime.datetime.now(zoneinfo.ZoneInfo(config.settings.timezone))
+	minute = now.hour * 60 + now.minute
+	return start <= minute < end if start < end else minute >= start or minute < end
 
 def palette():
 	"""The surface, ink, muted ink and grid colours of the theme in force."""

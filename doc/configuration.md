@@ -67,7 +67,7 @@ The administrators of the chat a person is in are admins there with no setting: 
 | `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
 | `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
 | `graph` | `True` | Send charts with reports |
-| `darkmode` | `off` | The charts' theme. `off`: light; `on`: dark; `auto`: dark from 18:00 to 06:00 in the `timezone` setting, light by day. The shorts chart keeps its own colours |
+| `darkmode` | `off` | The charts' theme. `off`: light; `on`: dark; `auto`: dark from 18:00 to 06:00 in the `timezone` setting, light by day; or the hours the charts are dark in the `timezone` setting, light otherwise: `18:00-6:00`, `18-6` or `6pm-6am`. The shorts chart keeps its own colours |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` (any other value stops a start or a reload, naming the key) |
