@@ -36,7 +36,7 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 }
 RENAMED = {} # startup keys under a new name: the old still works (the new wins where both are set), with a note
 SERVICE_DATA_DIR = '/var/lib/private/finbot' # systemd's state directory of finbot.service (StateDirectory=)
-DARKMODES = ('off', 'on', 'auto') # darkmode's values: light charts, dark ones, or dark at night (lib/render.py)
+DARKMODES = ('off', 'on') # darkmode's words: light charts or dark ones; else the hours they are dark (lib/render.py)
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -150,6 +150,26 @@ TRUE_WORDS = ('true', '1', 't', 'yes', 'y', 'on')
 FALSE_WORDS = ('false', '0', 'f', 'no', 'n', 'off')
 
 
+_HOURS = re.compile(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', re.IGNORECASE)
+
+def night_hours(text):
+	"""The minutes of the day (start, end) of "18:00-6:00", "18-6" or "6pm-6am", or None where it is no such hours
+	(or starts when it ends). The end may come before the start: the hours run past midnight."""
+	if not (found := _HOURS.fullmatch(text.strip())):
+		return None
+	times = []
+	for hours, mins, half in (found.group(1, 2, 3), found.group(4, 5, 6)):
+		hour, minute = int(hours), int(mins or 0)
+		if half:
+			if not 1 <= hour <= 12:
+				return None
+			hour = hour % 12 + (12 if half.lower() == 'pm' else 0)
+		if hour > 23 or minute > 59:
+			return None
+		times.append(hour * 60 + minute)
+	return tuple(times) if times[0] != times[1] else None
+
+
 class _Reader:
 	"""Typed reads from a getenv(name, default); a bad value is remembered, the default used, and all problems raised
 	together. A blank value means unset: the default."""
@@ -204,6 +224,17 @@ class _Reader:
 		if found := next((choice for choice in choices if choice.lower() == value.lower()), None):
 			return found
 		self.errors.append(f"{name}={self.getenv(name, default)!r} is not one of {', '.join(choices)}")
+		return default
+
+	def darkmode(self, name, default):
+		"""off, on or the hours the charts are dark, "18:00-6:00", "18-6" or "6pm-6am": as off, on or HH:MM-HH:MM;
+		anything else is an error, giving default."""
+		value = str(self.value(name, default)).strip()
+		if value.lower() in DARKMODES:
+			return value.lower()
+		if hours := night_hours(value):
+			return '%02d:%02d-%02d:%02d' % (*divmod(hours[0], 60), *divmod(hours[1], 60))
+		self.errors.append(f"{name}={value!r} is not one of {', '.join(DARKMODES)} or hours such as 6pm-6am")
 		return default
 
 	def zone(self, name, default):
@@ -305,7 +336,7 @@ class Settings:
 	cache: bool = True
 	cache_seconds: int = 21600
 	country_code: str = 'AU'
-	darkmode: str = 'off' # charts' theme: one of DARKMODES
+	darkmode: str = 'off' # charts' theme: one of DARKMODES, or the hours they are dark (HH:MM-HH:MM)
 	demote_leveraged: bool = True
 	demote_volatile: bool = True
 	exchange_suffix: str = 'AX' # Yahoo's suffix for the local exchange: a bare ticker Yahoo does not know gets it
@@ -342,7 +373,7 @@ def setting_values(values):
 		'admin_only': r.blankable_words,
 		'exchange_suffix': lambda name, default: r.blankable(name, default).removeprefix('.').upper(), # blank: none
 		'country_code': lambda name, default: r.str(name, default).strip().upper(),
-		'darkmode': lambda name, default: r.choice(name, default, DARKMODES),
+		'darkmode': r.darkmode,
 		'hyperlinkProvider': lambda name, default: r.choice(name, default, ('google', 'yahoo')),
 		'log_level': lambda name, default: r.choice(name, default, LOG_LEVELS),
 		'timezone': r.zone}
