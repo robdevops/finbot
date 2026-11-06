@@ -537,13 +537,6 @@ class Themes(unittest.TestCase):
 		self.assertEqual(self.corner('off'), (255, 255, 255))
 		self.assertEqual(self.corner('on'), BG)
 
-	def test_auto_follows_the_night(self):
-		"""Auto is dark from 18:00 to 06:00 and light between."""
-		self.assertEqual(self.corner('auto', 12), (255, 255, 255))
-		self.assertEqual(self.corner('auto', 23), BG)
-		self.assertEqual(self.corner('auto', 5), BG)
-		self.assertEqual(self.corner('auto', 6), (255, 255, 255))
-
 	def test_hours_are_the_night(self):
 		"""Hours in any spelling are dark within them, past midnight or not, and light outside."""
 		for mode in ('20:00-7:00', '20-7', '8pm-7am'):
@@ -558,7 +551,7 @@ class Themes(unittest.TestCase):
 		"""The setting reads hours, and refuses what is not."""
 		for text in ('18:00-6:00', '18-6', '6pm-6am', ' 6PM - 6:00 am '):
 			self.assertEqual(config.setting_values({'darkmode': text}).darkmode, '18:00-06:00', text)
-		for text in ('18-18', '25-6', '0pm-6am', 'night', '18'):
+		for text in ('18-18', '25-6', '0pm-6am', 'night', '18', 'auto'):
 			with self.assertRaises(config.ConfigError, msg=text):
 				config.setting_values({'darkmode': text})
 

@@ -36,8 +36,7 @@ RETIRED = { # keys of either file that do nothing any more: accepted, so that th
 }
 RENAMED = {} # startup keys under a new name: the old still works (the new wins where both are set), with a note
 SERVICE_DATA_DIR = '/var/lib/private/finbot' # systemd's state directory of finbot.service (StateDirectory=)
-DARKMODES = ('off', 'on', 'auto') # darkmode's words: light charts, dark ones, or dark at night (lib/render.py)
-NIGHT_HOURS = '18:00-06:00' # what darkmode=auto means: dark from 18:00 to 06:00
+DARKMODES = ('off', 'on') # darkmode's words: light charts or dark ones; else the hours they are dark (lib/render.py)
 LOG_LEVELS = ('ERROR', 'WARN', 'INFO', 'DEBUG') # log_level's values, the most severe first (lib/log.py)
 
 
@@ -228,8 +227,8 @@ class _Reader:
 		return default
 
 	def darkmode(self, name, default):
-		"""off, on, auto or the hours the charts are dark, "18:00-6:00", "18-6" or "6pm-6am": as off, on or HH:MM-HH:MM
-		(auto as 18:00-06:00 would be, kept as auto); anything else is an error, giving default."""
+		"""off, on or the hours the charts are dark, "18:00-6:00", "18-6" or "6pm-6am": as off, on or HH:MM-HH:MM;
+		anything else is an error, giving default."""
 		value = str(self.value(name, default)).strip()
 		if value.lower() in DARKMODES:
 			return value.lower()

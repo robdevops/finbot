@@ -60,13 +60,13 @@ BAR_UP = CATEGORIES[0] # bars rise in blue; they fall in DOWN
 _dark_now = contextvars.ContextVar('dark_now', default=None) # draw() settles the theme once, for its whole drawing
 
 def is_dark():
-	"""Whether charts are drawn dark now: the darkmode setting (on; auto or hours: within them in the timezone)."""
+	"""Whether charts are drawn dark now: the darkmode setting (on; or within its hours in the timezone)."""
 	if (settled := _dark_now.get()) is not None:
 		return settled
 	mode = config.settings.darkmode
 	if mode in ('on', 'off'):
 		return mode == 'on'
-	start, end = config.night_hours(config.NIGHT_HOURS if mode == 'auto' else mode)
+	start, end = config.night_hours(mode)
 	now = datetime.datetime.now(zoneinfo.ZoneInfo(config.settings.timezone))
 	minute = now.hour * 60 + now.minute
 	return start <= minute < end if start < end else minute >= start or minute < end
