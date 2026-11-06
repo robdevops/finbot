@@ -53,35 +53,35 @@ A change takes effect on a reload. A true/false setting takes `true`/`false`, `y
 |---|---|---|
 | `admin_only` | `jobs` | The commands only the admins may use, by name, space separated (`jobs watchlist`). Closed by default: `/jobs` is one, and only the admins may use it (see `admins`: a chat's own administrators are admins there). Blank (`admin_only=`) restricts no command. Someone else gets a refusal, and a press of one of those commands' buttons is refused with a message to them alone (an alert on Telegram, a message only they see on Slack and Discord) |
 | `admins` | | Who the admins are besides each chat's own administrators (below), space separated, each the network and the sender's id as the log shows them: `telegram:@username` (or the numeric user id; never a first name, which anyone may take), `slack:U0123ABCD` (`<@U0123ABCD>` in the log), `discord:123456789012345678` |
-| `past_days` | `28` | How many days back reports look |
-| `future_days` | `30` | How many days ahead the events calendar looks |
-| `price_percent` | `5` | Movers threshold, percent: the moves `/movers`, `/session` and their jobs list |
-| `shorts_percent` | `15` | Short interest alert threshold, percent |
-| `min_analysts` | `7` | `/buy`, `/sell`, and `/ratio` (the forward P/E and the PEG) list only stocks covered by at least this many analysts; with fewer, a consensus or an estimate says little (thinly covered small caps are nearly all a perfect buy). Their charts say so in the subtitle |
-| `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
-| `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
-| `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |
-| `exclude_portfolios` | | Sharesight portfolio IDs to leave out, space separated |
-| `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
-| `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
-| `graph` | `True` | Send charts with reports |
+| `cache` | `True` | Cache Yahoo and Sharesight responses |
+| `cache_seconds` | `21600` | Cache lifetime in seconds (6 hours) |
+| `country_code` | `AU` | Regional: your country, in any case, for the default jobs' messages that are for one (`AU`: the tax year's reminders) |
 | `darkmode` | `off` | The charts' theme. `off`: light; `on`: dark; or the hours the charts are dark in the `timezone` setting, light otherwise: `18:00-6:00`, `18-6` or `6pm-6am`. The shorts chart keeps its own colours |
+| `demote_leveraged` | `True` | Leveraged (2x, 3x) funds need a bigger move to alert |
+| `demote_volatile` | `True` | Volatile (small cap, high beta) stocks need a bigger move to alert |
+| `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
+| `exclude_portfolios` | | Sharesight portfolio IDs to leave out, space separated |
+| `future_days` | `30` | How many days ahead the events calendar looks |
+| `graph` | `True` | Send charts with reports |
+| `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
 | `hyperlink` | `True` | Hyperlink tickers in reports |
 | `hyperlinkFooter` | `True` | Add a website link footer to stock lookups |
 | `hyperlinkProvider` | `google` | Where ticker links go: `google` or `yahoo` (any other value stops a start or a reload, naming the key) |
-| `exchange_suffix` | `AX` | Regional: Yahoo's suffix for your exchange (`AX` for the ASX, `NZ`, `L`, `TO` and so on). A bare symbol Yahoo does not know is tried again with it, in every command that takes a symbol (`BHP` becomes `BHP.AX`); empty, a symbol is taken as written |
-| `country_code` | `AU` | Regional: your country, in any case, for the default jobs' messages that are for one (`AU`: the tax year's reminders) |
-| `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, a job's zone where it names none, and what "today" is (ytd, reports' dates); a name that is no zone stops a start or a reload, naming the key |
-| `telegram_preload_chat` | | A private Telegram channel or group of your own, by its id (`-1001234567890`, as the log shows a chat's): as a chart with period or portfolio buttons goes out, its other periods and portfolios are uploaded there, so that a press shows them without an upload (see [Telegram](telegram.md#preloading-charts)). Empty: off |
-| `slack_preload_chat` | | The same on Slack: a private channel's id (`C0123ABCD`), the bot invited (see [Slack](slack.md#preloading-charts)). Empty: off |
-| `preload_gap` | `0.1` | Seconds between the starts of two charts preloaded to a network (two uploads at a time, on Telegram and Slack alike, each chart sent as soon as it is drawn). A rate limit is waited out once and the upload tried again, as every request to a network is |
-| `cache` | `True` | Cache Yahoo and Sharesight responses |
-| `cache_seconds` | `21600` | Cache lifetime in seconds (6 hours) |
-| `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |
-| `http_timeout` | `18` | Seconds to wait on outbound HTTP requests |
+| `include_portfolios` | | Sharesight portfolio IDs to report on, space separated (empty: all that are not excluded) |
 | `log_level` | `INFO` | What the log shows: that level and those above it, syslog style. `ERROR`: what failed and was lost (a message not sent); `WARN`: what failed and was got over (a retry, a fallback, a request refused); `INFO`: what finbot does (each message sent, each job run, each request sent, each request refused); `DEBUG`: the routine of a button press too (the press, its acknowledgement, the message edited in place), each request answered with success, and each cache miss, hit and write. Replaces `debug`. Under systemd each line carries its syslog priority (error, warning, info, debug), so `journalctl` colours it and `journalctl -p warning` filters by it |
 | `log_width` | `71` | The most characters of a log line that can run long: a longer one is cut there, ending in `…`. That is each request's line (its method and URL) and each chat message's (who sent what, in which network). A message of several lines is logged on one line, its line breaks spaces. `0`: no line is cut |
+| `min_analysts` | `7` | `/buy`, `/sell`, and `/ratio` (the forward P/E and the PEG) list only stocks covered by at least this many analysts; with fewer, a consensus or an estimate says little (thinly covered small caps are nearly all a perfect buy). Their charts say so in the subtitle |
+| `past_days` | `28` | How many days back reports look |
+| `performance_cache_seconds` | `2400` | Cache lifetime of Sharesight performance reports in seconds: longer than the 30 minutes between `sharesight_warm` runs, so the holdings never run out |
+| `preload_gap` | `0.1` | Seconds between the starts of two charts preloaded to a network (two uploads at a time, on Telegram and Slack alike, each chart sent as soon as it is drawn). A rate limit is waited out once and the upload tried again, as every request to a network is |
+| `price_percent` | `5` | Movers threshold, percent: the moves `/movers`, `/session` and their jobs list |
 | `print_headers` | `False` | Log inbound request headers |
+| `shorts_percent` | `15` | Short interest alert threshold, percent |
+| `slack_preload_chat` | | The same on Slack: a private channel's id (`C0123ABCD`), the bot invited (see [Slack](slack.md#preloading-charts)). Empty: off |
+| `telegram_preload_chat` | | A private Telegram channel or group of your own, by its id (`-1001234567890`, as the log shows a chat's): as a chart with period or portfolio buttons goes out, its other periods and portfolios are uploaded there, so that a press shows them without an upload (see [Telegram](telegram.md#preloading-charts)). Empty: off |
+| `timezone` | `Australia/Melbourne` | Regional: your time zone, the clock of the times `/jobs` takes and shows, a job's zone where it names none, and what "today" is (ytd, reports' dates); a name that is no zone stops a start or a reload, naming the key |
+| `trades_use_yahoo` | `True` | Use Yahoo for trades; set `False` if Yahoo breaks |
+| `volatility_multiplier` | `2` | How much bigger a move volatile stocks need |
 
 The administrators of the chat a person is in are admins there with no setting: the creator and administrators of a Telegram group (the bot asks `getChatMember`), the owner and anyone with an Administrator role in a Discord server, and the owners and admins of a Slack workspace (`users.info`; needs the `users:read` scope, which the manifest has). In a direct message with the bot, a person is an admin if they are one in any Telegram group finbot has seen, or Discord server the bot is in (a Slack workspace's admins are admins everywhere). finbot asks again every five minutes, so a change shows soon. A question whose connection fails is asked once more at once; where it still fails (a network down, or a scope missing), the network's last answer stands, else the `admins` setting alone decides, and the next message asks again.
 
