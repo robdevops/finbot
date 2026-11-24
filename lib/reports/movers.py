@@ -63,6 +63,7 @@ MODES = ('interday', 'midsession', 'premarket', 'close', 'period')
 TOP = 10 # the stocks in each of the top and bottom lists (.movers top, a job of a number of days)
 HEADINGS = { # the report's heading, by mode; {when} is its date (or span), which its chart gives in its subtitle
 	'interday': '≥ {threshold:g}% at close{when}',
+	'interday_open': '≥ {threshold:g}% so far{when}', # interday while a market of the stocks is still in session
 	'midsession': '≥ {threshold:g}% mid-session{when} ({where})',
 	'premarket': '≥ {threshold:g}% pre-market{when} ({where})',
 	'close': '≥ {threshold:g}% at close{when} ({where})',
@@ -137,7 +138,8 @@ def report(service, found, mode='interday', threshold=None, days=None, top=None,
 	span = formats.date_range_english(days, found.as_of) if days else formats.date_short(found.as_of, True)
 	subtitle = formats.change_span(days, found.as_of)
 	if not top:
-		heading = lambda when: HEADINGS[mode].format(threshold=threshold, when=when, where=", ".join(found.exchanges))
+		words = HEADINGS['interday_open' if mode == 'interday' and found.in_session else mode]
+		heading = lambda when: words.format(threshold=threshold, when=when, where=", ".join(found.exchanges))
 		session = mode if mode in ('midsession', 'premarket') else None
 		chart = render.Chart('bars', heading(''), subtitle, tuple(label(found.rows)), session=session,
 			source='Yahoo Finance')

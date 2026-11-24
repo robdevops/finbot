@@ -661,7 +661,7 @@ class DiscordSending(FinbotCase):
 		payload = json.loads(kwargs['data']['payload_json'])
 		self.assertEqual((payload['flags'], payload['allowed_mentions'], payload['attachments'][0]['filename']),
 			(4, {'parse': []}, 'chart.png'))
-		self.assertTrue(payload['content'].startswith('**≥ 5% at close'), payload['content'][:60])
+		self.assertTrue(payload['content'].startswith('**≥ 5% so far'), payload['content'][:60])
 		self.assertLessEqual(len(payload['content']), 2000)
 		name, image, kind = kwargs['files']['files[0]']
 		self.assertEqual((name, kind), ('chart.png', 'image/png'))
@@ -905,7 +905,7 @@ class SlackButtons(FinbotCase):
 		self.assertNotIn('channel_id', self.posts[2][1]['data']) # in no channel: the message shows it
 		blocks = self.blocks('chat.postMessage')
 		self.assertEqual([block['type'] for block in blocks], ['section', 'image', 'actions'])
-		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% at close'))
+		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% so far'))
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
 		buttons_shown = blocks[2]['elements']
 		self.assertEqual([button['text']['text'] for button in buttons_shown], ['1D', '7D', '1M', '1Y', 'Max'])
@@ -952,7 +952,7 @@ class SlackButtons(FinbotCase):
 		self.assertEqual((self.calls(), built, self.errors), (['chat.update'], [], []))
 		blocks = self.blocks('chat.update')
 		self.assertEqual(blocks[1]['slack_file'], {'id': 'F1'})
-		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% at close'))
+		self.assertTrue(blocks[0]['text']['text'].startswith('*≥ 5% so far'))
 		self.assertEqual(slack_common.SLACK_REUSE_SECONDS, 30 * 60)
 		with state.edit(slack_common.SLACK_CHARTS, {}) as noted: # 31 minutes on
 			for upload in noted['uploads'].values():

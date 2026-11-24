@@ -259,6 +259,17 @@ class ReportFunctions(FinbotCase):
 		self.assertAlmostEqual(quote['market_cap_usd'], 1e11 / 1380.0) # US$72M
 		self.assertEqual(movers.trigger_bar('T1', quote, 5, {}), 5 * config.settings.volatility_multiplier)
 
+	def test_the_daily_movers_heading_says_at_close_only_once_the_market_has_closed(self):
+		"""While a market of the stocks is in session the daily list says 'so far', not 'at close'."""
+		for state, words in (('REGULAR', 'so far'), ('CLOSED', 'at close')):
+			with self.subTest(state=state):
+				self.patch(yahoo, 'fetch', lambda ts, state=state:
+					{t: market_entry(t) | {'marketState': state} for t in ts})
+				found = movers.moves(TICKERS[:3], 'interday', 1, interactive=True)
+				payload, chart = movers.report(TELEGRAM, found, 'interday', 1)
+				self.assertIn(words, payload[0])
+				self.assertIn(words, chart.title)
+
 	def test_a_short_top_list_repeats_none_of_its_best_as_the_worst(self):
 		"""With fewer than twice `top` stocks, the Bottom list leaves out those in the Top list (it repeated them), and
 		with none left there is no Bottom list and no gap in the chart; the subtitle says "over the past 3 months"."""
